@@ -194,7 +194,7 @@ export class FruitCountPage implements OnInit, AfterViewInit {
    * Lifecycle hook that is called after data-bound properties are initialized.
    */
   ngAfterViewInit() {
-    // Currently no implementation
+    console.log('ngAfterViewInit called');
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////
