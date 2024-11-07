@@ -6,16 +6,26 @@ import { v4 as uuidv4 } from 'uuid';
   providedIn: 'root'
 })
 export class CloudUploadService {
-  private readonly Url = 'https://gwk02bf51i.execute-api.eu-west-1.amazonaws.com/prod/';
-  private readonly signInUrl = this.Url + 'auth/sign-in';
-  private readonly refreshTokenUrl =  this.Url + 'auth/refresh-token';
-  private readonly photoUploadUrl =  this.Url + 'photo';
-  private readonly dataUploadUrl = this.Url + 'photo/data';
+  private Url: string = "";
+  private signInUrl: string = "";
+  private refreshTokenUrl: string = "";
+  private photoUploadUrl: string = "";
+  private dataUploadUrl: string = "";
   private userId = '';
   private token = '';
   private refreshToken = '';
 
-  constructor() {}
+  constructor() {
+  }
+
+  public setUrl(url: string) {
+    console.log(`CloudUploadService initialized with URL: ${url}`);
+    this.Url = url;
+    this.signInUrl = this.Url + 'auth/sign-in';
+    this.refreshTokenUrl =  this.Url + 'auth/refresh-token';
+    this.photoUploadUrl =  this.Url + 'photo';
+    this.dataUploadUrl = this.Url + 'photo/data';
+  }
 
   // Sign in
   private async signInRequest() {
