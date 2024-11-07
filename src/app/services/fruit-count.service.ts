@@ -13,6 +13,9 @@ import { add, remove } from 'ionicons/icons';
   providedIn: 'root',
 })
 export class FruitCountService {
+  public isDecreaseDisabled: boolean = false;
+  public isIncreaseDisabled: boolean = false;
+  public isNextDisabled: boolean = false;
   private logLevel: number = 2; // Variable to control log level: 1 (most significant) to 3 (less significant)
   private model: tf.GraphModel | null = null;
   private canvas: HTMLCanvasElement | null = null;
@@ -22,19 +25,16 @@ export class FruitCountService {
   private scoreThreshold: number = 0;
   private iouThreshold: number = 0;
   private thresholdValue: number = 0;
-  isDecreaseDisabled: boolean = false;
-  isIncreaseDisabled: boolean = false;
-  isNextDisabled: boolean = false;
   private predictionsData: any[] = [];
   private modelFilename: string = '';
   private fruitSampleFilename: string = '';
   private baseResolution: number = 640; 
   private _sensitivityValue: number = 0;
   private _sensitivityText: string = 'N';
+  private _totalSelectedObjects: number = 0;
   private predictBoxes: tf.Tensor | undefined;
   private predictScores: tf.Tensor | undefined;
   private _fruitName: string = '';
-  private _totalSelectedObjects: number = 0;
   private numImages: number = 0;
   private imageFilename: string = '';
   private imageExample: boolean = true;
@@ -56,6 +56,15 @@ export class FruitCountService {
     addIcons({ remove });
   }
 
+//////////////////////////////////////////////////////////////////////////////////////////////
+
+  /**
+   * Initializes the service with specified fruit type, subtype, and other parameters.
+   * @param fruitType - Type of the fruit.
+   * @param fruitSubType - Subtype of the fruit.
+   * @param fruitLocalName - Localized name of the fruit.
+   * @param ApiUrl - API URL for cloud upload service.
+   */
   public initialize(fruitType: string, fruitSubType: string, fruitLocalName: string, ApiUrl: string ="") {
     // Configure the model and fruit names
     console.log(`configureFruitType: type: ${fruitType}, sub-type: ${fruitSubType}, local name: ${fruitLocalName}`);
@@ -251,8 +260,8 @@ export class FruitCountService {
   //////////////////////////////////////////////////////////////////////////////////////////////
 
   /**
-   * Loads the TensorFlow.js model.
-   * @param reload Whether to reload the model even if it's already loaded.
+   * Loads the TensorFlow.js model, reloading if specified.
+   * @param reload - If true, forces model reload.
    */
   public async loadModel(reload: boolean = false) {
     console.log(`TensorFlow.js version: ${tf.version.tfjs}`);
@@ -275,8 +284,8 @@ export class FruitCountService {
   //////////////////////////////////////////////////////////////////////////////////////////////
 
   /**
-   * Handles image upload from file input or filename.
-   * @param input The file event or filename.
+   * Handles image upload, processing the file and preparing it for analysis.
+   * @param input - Event or filename for the image to be uploaded.
    */
   public async handleImageUpload(input: any) {
     this.log('Image upload triggered.', 2);
@@ -383,9 +392,10 @@ export class FruitCountService {
   //////////////////////////////////////////////////////////////////////////////////////////////
 
   /**
-   * Handles changes to the confidence slider.
-   * @param event The input event from the slider.
-   */
+   * Logs messages based on the specified log level.
+   * @param message The message to log.
+   * @param level The severity level of the log (default is 3).
+  */
   public handleSliderChange(event: any) {
     this.calculateScoreThreshold(parseInt(event.target.value));
     this.log(`Confidence threshold updated: ${this.scoreThreshold}`, 1);
@@ -610,7 +620,7 @@ export class FruitCountService {
   private async drawEllipses(showMessage: boolean = true): Promise<void> {
     if (this.predictBoxes && this.predictScores && this.ctx) {
       const total_before = this.totalSelectedObjects;
-      this.log(`Starting to analise ${this.totalObjects} objects.`, 2);
+      this.log(`Starting to analyze ${this.totalObjects} objects.`, 2);
       const {filteredBoxes, filteredScores} = await this.applyNonMaxSuppression();
       const ellipses = await this.tensorToEllipses(filteredBoxes, filteredScores);
       this.totalSelectedObjects = ellipses.length;
