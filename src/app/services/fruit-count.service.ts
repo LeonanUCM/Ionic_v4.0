@@ -16,6 +16,7 @@ export class FruitCountService {
   public isDecreaseDisabled: boolean = false;
   public isIncreaseDisabled: boolean = false;
   public isNextDisabled: boolean = false;
+  public isBadgeOpenFilesVisible: boolean = false;
   private logLevel: number = 2; // Variable to control log level: 1 (most significant) to 3 (less significant)
   private model: tf.GraphModel | null = null;
   private canvas: HTMLCanvasElement | null = null;
@@ -24,7 +25,6 @@ export class FruitCountService {
   private loadingInstance: HTMLIonLoadingElement | null = null;
   private scoreThreshold: number = 0;
   private iouThreshold: number = 0;
-  private thresholdValue: number = 0;
   private predictionsData: any[] = [];
   private modelFilename: string = '';
   private fruitSampleFilename: string = '';
@@ -35,7 +35,7 @@ export class FruitCountService {
   private predictBoxes: tf.Tensor | undefined;
   private predictScores: tf.Tensor | undefined;
   private _fruitName: string = '';
-  private numImages: number = 0;
+  public fileIndex: number = 0;
   private imageFilename: string = '';
   private imageExample: boolean = true;
   private totalObjects: number = 0;
@@ -78,6 +78,13 @@ export class FruitCountService {
     console.log(`Model: ${this.modelFilename}, Sample: ${this.fruitSampleFilename}`);
 
     this.initializeEventListeners();
+
+    this.calculateScoreThreshold(this.sensitivityValue);
+    console.log(`Initial confidence threshold: ${this.scoreThreshold}`, 2);
+
+    // Draw the sample image and load the model
+    //this.drawRoundedImage(this.canvas!, this.fruitSampleFilename);
+    this.loadModel(true);
     this.handleImageUpload(this.fruitSampleFilename);
   }
 
@@ -224,7 +231,7 @@ export class FruitCountService {
    * Initializes event listeners for UI elements and window resize.
    */
   private initializeEventListeners() {
-    this.log('Initializing event listeners.', 3);
+    console.log('Initializing event listeners.', 3);
 
     this.canvas = document.getElementById('resultCanvas') as HTMLCanvasElement;
     this.ctx = this.canvas.getContext('2d');
@@ -247,13 +254,6 @@ export class FruitCountService {
         });
       }
     });
-
-    this.calculateScoreThreshold(this.thresholdValue);
-    this.log(`Initial confidence threshold: ${this.scoreThreshold}`, 2);
-
-    // Draw the sample image and load the model
-    this.drawRoundedImage(this.canvas!, this.fruitSampleFilename);
-    this.loadModel(true);
   }
 
 
@@ -313,22 +313,25 @@ export class FruitCountService {
     } else if (input && input.target && input.target.files && input.target.files.length > 0) {
       this.log('Received event with multiple files.', 2);
       this.imageExample = false;
-
+      this.isBadgeOpenFilesVisible = true;
       files = input.target.files; // Store all selected files
     } else {
       throw new Error('Invalid input: Expected a file event or a filename.');
     }
-    this.numImages = files.length;
     this.isNextDisabled = this.imageExample;
+    const numImagesOpened = files.length;
   
     // Function to handle each file sequentially
     const processFile = async (index: number) => {
-      if (index >= this.numImages) {
+      this.fileIndex = numImagesOpened - index;
+
+      if (index >= numImagesOpened) {
         this.log('All files processed.', 2);
+        this.isBadgeOpenFilesVisible = false;
         this.isNextDisabled = true;
         return; // No more files to process
       }
-  
+
       const file = files[index];
       this.imageFilename = file.name;
       this.log(`Processing file: ${this.imageFilename}`, 2);
@@ -353,12 +356,15 @@ export class FruitCountService {
           this.log(`Input tensor shape: ${inputTensor.shape}`, 1);
   
           try {
-            if (this.numImages > 1) {
-              await this.showLoading(`Analizando imagen ${index+1}/${this.numImages}...`);
-            } else {
-              await this.showLoading('Analizando imagen...');
-            }
+            let message = '';
+            if ( this.imageExample )
+              message = `Cargando modelo...`;
+            else if (numImagesOpened > 1)
+              message = `Analizando imagen ${index+1}/${numImagesOpened}...`;
+            else
+              message = 'Analizando imagen...';
 
+            await this.showLoading(message);
             const result = await this.predict(inputTensor);
             if (!result || !this.predictBoxes || !this.predictScores) {
               throw new Error('No results received from prediction.');
@@ -1110,15 +1116,14 @@ export class FruitCountService {
    * Updates the sensitivity based on the confidence slider value.
    */
   updateSensitivity(redraw: boolean=true) {
-    this.thresholdValue = this.sensitivityValue;
-    this._sensitivityText = this.formatSensitivity(this.thresholdValue);
-    this.log(`Sensitivity updated: ${this.thresholdValue}`, 2);
+    this._sensitivityText = this.formatSensitivity(this.sensitivityValue);
+    this.log(`Sensitivity updated: ${this.sensitivityValue}`, 2);
 
-    this.calculateScoreThreshold(this.thresholdValue);
+    this.calculateScoreThreshold(this.sensitivityValue);
     this.log(`Confidence threshold updated to: ${this.scoreThreshold}`, 2);
 
-    this.isDecreaseDisabled = this.thresholdValue <= -5;
-    this.isIncreaseDisabled = this.thresholdValue >= 5;
+    this.isDecreaseDisabled = this.sensitivityValue <= -5;
+    this.isIncreaseDisabled = this.sensitivityValue >= 5;
     if (this.ctx && redraw) {
       this.drawEllipses();
     }
@@ -1205,7 +1210,7 @@ export class FruitCountService {
     let filename: string = '';
     let extension: string = '';
     ({filename, extension} = this.splitFilename(full_filename));
-    const newFilename: string = `${filename}_count${this._totalSelectedObjects}_s${this.formatSensitivity(this.thresholdValue)}.${extension}`
+    const newFilename: string = `${filename}_count${this._totalSelectedObjects}_s${this.sensitivityValue}.${extension}`
     this.log(`New filename: ${newFilename}`, 2);
     return newFilename;
   }

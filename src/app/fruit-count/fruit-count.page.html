@@ -7,7 +7,10 @@
     <ion-fab-button (click)="goBack()"><ion-icon class="button-home"></ion-icon></ion-fab-button>
     <div class="empty-space"></div>
     <input type="file" id="imageUpload" (change)="fruitCountService.handleImageUpload($event)" accept="image/*" hidden multiple>
-    <ion-fab-button (click)="triggerFileInput('imageUpload')"><ion-icon name="images-outline"></ion-icon></ion-fab-button>
+    <ion-fab-button (click)="triggerFileInput('imageUpload')">
+      <ion-icon name="images-outline"></ion-icon>
+      <ion-badge *ngIf="fruitCountService.isBadgeOpenFilesVisible" class="badge-position">{{ fruitCountService.fileIndex }}</ion-badge>
+    </ion-fab-button>
     <input type="file" id="cameraUpload" capture="environment" (change)="fruitCountService.handleImageUpload($event)" accept="image/*" hidden>
     <ion-fab-button (click)="triggerFileInput('cameraUpload')"><ion-icon name="camera-outline"></ion-icon></ion-fab-button>
     <div class="empty-space"></div>

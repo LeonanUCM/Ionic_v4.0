@@ -14,7 +14,7 @@
 
 /* Capa para los FABs que no se escala */
 .fab-overlay {
-    position: absolute;
+    position: fixed;
     top: 0;
     left: 0;
     width: 100vw;
@@ -30,39 +30,52 @@
     pointer-events: auto;
 }
 
-.fab-1 {
+/* Estilos para fab-1 y fab-2 en orientación vertical */
+.fab-1,
+.fab-2 {
+    position: fixed;
+    display: flex;
     flex-direction: row;
-    height: 10vh;
     width: 100vw;
+    height: 10vh;
+    pointer-events: auto;
+}
+
+/* Posición en orientación vertical */
+.fab-1 {
     top: 4vh;
 }
 
 .fab-2 {
-    flex-direction: row;
-    height: 10vh;
-    width: 100vw;
     top: 86vh;
 }
 
-@media (orientation: landscape) {
-.fab-1 {
-    flex-direction: column;
-    height: 100vh;
-    width: 5vw;
-    top: 0px;
-    left: 5vw;
-}
-}
+.badge-position {
+    position: absolute;
+    top: 1vh; /* Ajusta para posicionar por encima del botón */
+    right: 1vh; /* Ajusta para alejarlo del borde derecho del botón */
+    background-color: red;
+    color: white;
+    font-size: 3vmin; /* Adjusts the size of the text */
+  }
 
-
+/* Estilos para orientación horizontal (landscape) */
 @media (orientation: landscape) {
-.fab-2 {
-    flex-direction: column;
-    height: 100vh;
-    width: 5vw;
-    top: 0px;
-    left: 90vw;
-}
+    .fab-1,
+    .fab-2 {
+        flex-direction: column;
+        width: 5vw;
+        height: 100vh;
+        top: 0;
+    }
+
+    .fab-1 {
+        left: 5vw;
+    }
+
+    .fab-2 {
+        left: 90vw;
+    }
 }
 
 ion-icon {
@@ -79,10 +92,10 @@ ion-fab-button {
     opacity: 0.9; /* Set opacity to 1 to remove transparency */
     --border-radius: 25%; /* Ensures the button remains circular */
     aspect-ratio: 1 / 1; /* Maintain aspect ratio */
-    min-width: 9vmin;
-    max-width: 9vmin;
-    min-height: 9vmin;
-    max-height: 9vmin;
+    min-width: 14vmin;
+    max-width: 14vmin;
+    min-height: 14vmin;
+    max-height: 14vmin;
     box-shadow: 3px 3px 10px 0 rgba(0, 0, 0, 0.2) !important; /* Box shadow */
 }
 
@@ -91,30 +104,31 @@ ion-fab-button[disabled] {
 }
 
 .button_disable {
-    opacity: 0.3;
+    opacity: 0.5;
 }
 
 .non-clickable-button {
     --background: var(--ion-color-gray);
     pointer-events: none; /* Makes the button non-clickable */
-    min-width: 5vmin;
-    max-width: 5vmin;
-    min-height: 5vmin;
-    max-height: 5vmin;
+    min-width: 7vmin;
+    max-width: 7vmin;
+    min-height: 7vmin;
+    max-height: 7vmin;
 }
 
 
 .non-clickable-button span {
-    font-size: 2vmin; /* Adjusts the size of the text */
+    font-size: 3vmin; /* Adjusts the size of the text */
     color: #000; /* Sets the text color */
 }
 
 /* BUTTON SPECIFIC STYLES */
 
 .empty-space {
-    @extend .button;
-    width: 100%;
-    height: 100%;
+    min-width: 3vmin;
+    min-height: 3vmin;
+    max-width: 10vmin;
+    max-height: 10vmin;
   }
   
 .button {
@@ -127,10 +141,10 @@ ion-fab-button[disabled] {
     border: none;
     transition: border 0.3s ease;
     aspect-ratio: 1 / 1;
-    min-width: 8vmin;
-    max-width: 8vmin;
-    min-height: 8vmin;
-    max-height: 8vmin;
+    min-width: 14vmin;
+    max-width: 14vmin;
+    min-height: 14vmin;
+    max-height: 14vmin;
 }
 
 

@@ -113,17 +113,9 @@ ion-title {
   --box-shadow: 5px 5px 10px 0 rgba(0, 0, 0, 0.4);
   --color: var(--ion-color-dark);
   --border-radius: 15px;
+  text-align: center;
   font-weight: bold; 
   animation: slide-up 0.8s ease-out, fade-out 0.5s ease-in 3.5s forwards; /* Entrada y salida */
-}
-
-.custom-toast::part(message) {
-  text-align: center;
-} 
-
-.custom-toast::part(button) {
-  border-left: 1px solid #d2d2d2;
-  color: #030207;
 }
 
 @keyframes fade-in {
