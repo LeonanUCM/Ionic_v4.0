@@ -1,0 +1,224 @@
+ion-header, ion-toolbar {
+  height: 20vh;
+  min-height: 20vh;
+  max-height: 20vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+ion-img {
+  aspect-ratio: 1 / 1;
+}
+
+.home-content {
+  --ion-background-color: var(--ion-color-secondary);
+  width: 100vw;
+  height: 80vh;
+  max-height: 80vh;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  top: 20vh;
+}
+
+.home-grid {
+  display: grid;
+  justify-content: center;
+  width: 100%;
+  height: 60vh;
+  overflow-y: hidden;
+  overflow-x: hidden;
+}
+
+.home-menu-row {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  gap: 5vmin;
+}
+
+.home-menu-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  text-align: center;
+  min-width: 40vmin;
+}
+
+.home-menu-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+  position: relative;
+}
+
+.home-menu-img {
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 10%;
+  overflow: hidden;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  border: 0.5vmin solid color-mix(in srgb, var(--ion-color-light) 50%, transparent);
+}
+
+.home-menu-img:hover {
+  transform: scale(1.1);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+}
+
+.button-label {
+  margin-top: 8px;
+  color: var(--ion-color-light);
+  font-family: var(--ion-font-family);
+  font-size: var(--ion-font-size-large);
+  text-align: center;
+}
+
+.version-label {
+  margin-top: 8px;
+  color: var(--ion-color-primary);
+  font-family: var(--ion-font-family);
+  font-size: var(--ion-font-size-small);
+  text-align: center;
+}
+
+
+.logo {
+  background-image: url('/assets/images/agroseguro-logo-dark.png');
+  background-color: transparent;
+  width: 40vmin;
+  aspect-ratio: 1 / 1;
+  background-size: contain; /* Scale the image to fit within the element */
+  background-repeat: no-repeat; /* Prevent image repetition */
+  background-position: center; /* Center the image within the element */  
+}
+
+.centered {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+ion-title {
+  height: 10vh;
+}	
+
+
+
+/* Modal Styles */
+/* Modal Styles */
+.full-screen-modal {
+  --width: 100vw;
+  --height: 80vh;
+  padding-top: 20vh;
+  padding-left: 10vmin;
+  padding-right: 10vmin;
+  padding-bottom: 10vmin;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
+  animation: growFromCenter 0.4s ease forwards;
+}
+
+.modal-content {
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-grid {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background-color: var(--ion-color-dark);
+  color: var(--ion-color-light);
+  align-items: center; /* Center content horizontally */
+}
+
+/* First Row: Centered Label */
+.label-row {
+  flex: 0 0 auto;
+  width: 100%;
+  justify-content: center; /* Center items horizontally */
+}
+
+.label-row ion-col {
+  display: flex;
+  justify-content: center; /* Center content within the column */
+}
+
+.button-label {
+  text-align: center;
+  color: var(--ion-color-light);
+}
+
+/* Second Row: Menu Options */
+.modal-menu-row {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  width: 80%;
+  min-height: 80%;
+  align-items: center; /* Center columns horizontally */
+}
+
+@media (orientation: landscape) {
+  .modal-menu-row {
+    flex: 1;
+    flex-direction: row;
+    justify-content: center; /* Center columns horizontally */
+  }
+}
+
+.modal-menu-col {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 1%; /* Add some spacing between columns */
+  max-width: 80%;
+  min-height: 30%;
+  max-height: 45%;
+}
+
+@media (orientation: landscape) {
+  .modal-menu-col {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 1%; /* Add some spacing between columns */
+    max-width: 40%;
+    min-height: 50%;
+    max-height: 70%;
+  }
+}  
+
+/* Adjust the size to use 80% of the space */
+.modal-menu-container {
+  width: 80%;
+  max-width: 80vw;
+  aspect-ratio: 1 / 1; /* Keep it square */
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (orientation: landscape) {
+  .modal-menu-container {
+    width: 40%; /* Each column takes 40% of the width */
+    max-width: 40vw;
+  }
+}

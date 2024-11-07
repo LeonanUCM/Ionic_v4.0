@@ -1,0 +1,175 @@
+/*
+ * App Global CSS for Ionic Migration
+ * ----------------------------------------------------------------------------
+ * Simplified for better readability and to avoid redundancy.
+ */
+
+/* Core and Basic Ionic Imports */
+@import "@ionic/angular/css/core.css";
+@import "@ionic/angular/css/normalize.css";
+@import "@ionic/angular/css/structure.css";
+@import "@ionic/angular/css/typography.css";
+@import "@ionic/angular/css/display.css";
+
+/* Optional CSS utils */
+@import "@ionic/angular/css/padding.css";
+@import "@ionic/angular/css/text-alignment.css";
+@import "@ionic/angular/css/text-transformation.css";
+@import "@ionic/angular/css/flex-utils.css";
+
+/* Dark Mode and Fonts */
+@import "theme/variables.scss";
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;700&display=swap');
+
+ion-app, ion-content, app-root {
+  display: flex;
+  flex-direction: column; /* Ensure child elements stack vertically */
+  flex-grow: 1;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  zoom: 1;
+  max-scale: 3;
+  min-scale: 0.8;
+  user-scalable: yes;
+}
+
+html, body {  
+  margin: 0px;
+  padding: 0px;
+  overflow: hidden;
+}
+
+ion-app, ion-content, app-root {
+  overflow: hidden; /* Prevent scroll */
+}
+
+
+/* By default, buttons align horizontally */
+ion-header, ion-toolbar {
+  height: 10vmin;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+ion-buttons {
+  display: flex;
+  flex-direction: row; /* Buttons are in a row in portrait */
+}
+
+/* Default styles for portrait (vertical) */
+ion-fab {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 1vmin;
+  top: 0px;
+  left: 0px;
+  position: fixed;
+}
+
+.toolbar-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+ion-title {
+  font-size: calc(var(--ion-font-size-large)*1.5);
+  line-height: 1; /* Asegura que el texto esté centrado */
+  text-align: center;
+  width: 100%;
+}
+
+.dark-background {
+  --background: var(--ion-color-dark) !important;
+  color: var(--ion-color-light) !important;
+}
+
+
+.custom-loading-class {
+  .loading-wrapper {
+    --box-shadow: 3px 3px 10px 0 rgba(0, 0, 0, 0.2) !important; /* Box shadow */
+    background: rgba(250, 250, 250, 0.8) !important;  /* Semi-transparent background */
+    border-radius: 12px !important;  /* Rounded corners */
+    padding: 20px !important;  /* Extra padding */
+}
+
+  .loading-spinner {
+    --spinner-color: #000000 !important;  /* Spinner color */
+  }
+
+  .loading-message {
+    color: #ffffff !important;  /* Text color inside loading */
+  }
+}
+
+.custom-toast {
+  --background: var(--ion-color-tertiary);
+  --box-shadow: 5px 5px 10px 0 rgba(0, 0, 0, 0.4);
+  --color: var(--ion-color-dark);
+  --border-radius: 15px;
+  font-weight: bold; 
+  animation: slide-up 0.8s ease-out, fade-out 0.5s ease-in 3.5s forwards; /* Entrada y salida */
+}
+
+.custom-toast::part(message) {
+  text-align: center;
+} 
+
+.custom-toast::part(button) {
+  border-left: 1px solid #d2d2d2;
+  color: #030207;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Define la animación para hacer que el toast suba desde abajo */
+@keyframes slide-up {
+  0% {
+    transform: translateY(100%); /* Empieza fuera de la pantalla, desde abajo */
+    opacity: 0; /* Inicialmente invisible */
+  }
+  100% {
+    transform: translateY(0); /* Llega a la posición final */
+    opacity: 1; /* Totalmente visible */
+  }
+}
+
+/* Define la animación para hacer que el toast desaparezca hacia abajo */
+@keyframes slide-down {
+  0% {
+    transform: translateY(0); /* Posición final antes de desaparecer */
+    opacity: 1; /* Totalmente visible */
+  }
+  100% {
+    transform: translateY(100%); /* Desliza hacia abajo fuera de la pantalla */
+    opacity: 0; /* Invisible al final */
+  }
+}
+
+@keyframes growFromCenter {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  80% {
+    transform: scale(1.05); /* Slight overshoot for a nice effect */
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}

@@ -1,0 +1,38 @@
+  <ion-header>
+    <ion-toolbar>
+      <ion-buttons slot="start"><ion-button fill="clear" (click)="goBack()" class="button-go-back"></ion-button></ion-buttons>
+      <ion-title>Detección de {{ fruitName }}</ion-title>
+    </ion-toolbar>
+  </ion-header>
+  
+  <ion-content>
+
+    <input type="file" id="imageUpload" accept="image/*" hidden/>
+    <input type="file" id="cameraUpload" accept="image/*" capture="environment" hidden/>
+
+    <ion-grid class="fruit-count-grid">
+      <!-- Upload buttons -->
+      <ion-row class="top-container">
+        <ion-col class="upload-container">
+          <label for="imageUpload" class="button button-open-photo"></label>
+          <label for="cameraUpload" class="button button-open-camera"></label>
+          <ion-button fill="clear" (click)="decreaseSensitivity()" class="button button-sensitivity-less"></ion-button>
+          <ion-range [(ngModel)]="confidenceSlider" min="1" max="10" step="1" ticks="false" pin="true" snaps="true" (ionChange)="updateSensitivity()" class="sensitivity-slider"></ion-range>
+          <ion-button fill="clear" (click)="increaseSensitivity()" class="button button-sensitivity-more"></ion-button>
+          <ion-button fill="clear" (click)="shareCanvasImage()" class="button button-share-image"></ion-button>
+        </ion-col>
+      </ion-row>
+
+      <ion-row class="bottom-container">
+        <!-- Canvas to show result -->
+        <ion-col class="result-container">
+          <div>
+            <ion-item>
+              <canvas id="resultCanvas"  class="result-canvas"></canvas>
+            </ion-item>          
+          </div>
+        </ion-col>
+      </ion-row>
+    </ion-grid>
+  </ion-content>
+  

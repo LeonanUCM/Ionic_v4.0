@@ -1,0 +1,7 @@
+{
+  "name": "Frutos2_0",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "angular"
+}

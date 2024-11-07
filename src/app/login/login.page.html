@@ -1,0 +1,73 @@
+<ion-content [fullscreen]="true">
+
+  <br /> <br /> <br /> <br />
+
+  <ion-grid>
+
+    <!-- Image -->
+    <ion-row class="ion-justify-content-center">
+      <ion-img src="../../assets/images/agroseguro-logo-simple.png" style="width:200px" />
+    </ion-row>
+
+    <ion-row class="ion-justify-content-center">
+      <ion-label id="welcome-label">¡Bienvenido!</ion-label>
+    </ion-row>
+
+    <br /> <br />
+
+    <ion-row class="ion-justify-content-center">
+      <ion-col size="12">
+        <ion-item>
+          <ion-input [(ngModel)]="user_email" id="mail-input" type="email" placeholder="Correo Electrónico"></ion-input>
+        </ion-item>
+      </ion-col>
+    </ion-row>
+
+    <ion-row class="ion-justify-content-center">
+      <ion-col size="12">
+        <ion-item>
+          <ion-input [(ngModel)]="user_password" type="{{ showPassword ? 'text' : 'password' }}"
+            placeholder="Contraseña"></ion-input>
+          <ion-button fill="clear" slot="end" aria-label="Show/hide" (click)="togglePasswordVisibility()">
+            <ion-icon name="{{ showPassword ? 'eye-off-outline' : 'eye-outline' }}" slot="icon-only"></ion-icon>
+          </ion-button>
+        </ion-item>
+      </ion-col>
+    </ion-row>
+
+    <br />
+
+    <ion-row class="ion-justify-content-center">
+      <ion-col size="11">
+        <ion-radio-group [(ngModel)]="remind_me" [allowEmptySelection]="true">
+          <ion-radio value="remind" labelPlacement="end">Recordarme</ion-radio>
+        </ion-radio-group>
+      </ion-col>
+    </ion-row>
+
+    <br />
+
+    <ion-row class="ion-justify-content-center">
+      <ion-col size="11">
+        <ion-label id="forgot-label">¿Olvidaste tu contraseña? </ion-label>
+        <a id="forgot-link" routerLink="/forgot-password">Recuperar</a>
+      </ion-col>
+    </ion-row>
+
+    <br />
+
+    <ion-row class="ion-justify-content-center">
+      <ion-col size="11">
+        <ion-button id="login-button" expand="block" (click)="checkValues()">Iniciar sesión</ion-button>
+      </ion-col>
+    </ion-row>
+
+    <ion-row class="ion-justify-content-center">
+      <ion-col size="11">
+        <ion-button id="offline-button" expand="block" [routerLink]="['/home']">Modo sin conexión</ion-button>
+      </ion-col>
+    </ion-row>
+
+  </ion-grid>
+
+</ion-content>

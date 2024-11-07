@@ -1,0 +1,58 @@
+:root {
+  /* Base colors */
+  --ion-color-dark: #4A423D;
+  --ion-color-medium: #318580;
+  --ion-color-light: #FFF6EF;
+
+  /* Harmonized primary colors */
+  --ion-color-primary: #856b4c; /* A warm brown that complements the earthy palette */
+  --ion-color-secondary: #b59571; /* A softer version of primary for secondary elements */
+  --ion-color-tertiary: #d1c6b1; /* A middle ground between the primary and medium colors */
+  --ion-color-gray: #C3BAB4; /* A soft gray for neutral elements */
+
+  /* Harmonized status colors */
+  --ion-color-success: #35CBCC; /* Greenish tone to align with $light-color */
+  --ion-color-warning: #E69249; /* A muted warm orange for warnings */
+  --ion-color-danger: #a8493e; /* A softer red to fit the palette */
+
+  --ion-color-soil: #d8ad8a;
+  --ion-color-tree: #88dbdb;
+
+
+  /* Typography */
+  --ion-font-family: 'Acme', sans-serif;
+  --ion-text-color: ion-color-light; /* Default text color */
+
+  /* Font sizes */
+  --ion-font-size-base: 16px;
+  --ion-font-size-small: 14px;
+  --ion-font-size-large: 18px;
+
+  /* Spacing */
+  --ion-margin-small: 8px;
+  --ion-margin-medium: 16px;
+  --ion-margin-large: 24px;
+
+  --ion-padding-small: 8px;
+  --ion-padding-medium: 16px;
+  --ion-padding-large: 24px;
+
+  /* Border radius */
+  --ion-border-radius: 8px;
+
+  /* Background and toolbar */
+  --ion-background-color: var(--ion-color-dark); /* Dark background */
+  --ion-toolbar-background: var(--ion-color-light); /* Background for toolbar */
+  --ion-toolbar-text-color: var(--ion-color-dark); /* Light text color for toolbar */
+
+  /* Button color */
+  --ion-button-background: var(--ion-color-dark); /* Use the dark background color for buttons */
+  --ion-button-text-color: var(--ion-color-light) /* Use light color for button text */
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ion-color-dark: #4A423D;
+  }
+}

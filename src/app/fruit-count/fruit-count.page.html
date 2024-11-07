@@ -1,0 +1,49 @@
+<ion-content class="result-content">
+  <input type="file" id="imageUpload" accept="image/*" hidden multiple/>
+    <input type="file" id="cameraUpload" accept="image/*" capture="environment" hidden/>
+    <canvas id="resultCanvas" class="result-canvas"></canvas>
+</ion-content>
+<div class="fab-overlay">
+  <ion-fab class="fab-1">
+    <div class="empty-space"></div>
+    <ion-fab-button (click)="goBack()"><ion-icon class="button-home"></ion-icon></ion-fab-button>
+    <div class="empty-space"></div>
+    <ion-fab-button (click)="triggerFileInput('imageUpload')"><ion-icon name="images-outline"></ion-icon></ion-fab-button>
+    <ion-fab-button (click)="triggerFileInput('cameraUpload')"><ion-icon name="camera-outline"></ion-icon></ion-fab-button>
+    <div class="empty-space"></div>
+    <ion-fab-button (click)="shareCanvasImage('social')"><ion-icon name="share-social-outline"></ion-icon></ion-fab-button>
+    <ion-fab-button id="nextButton" [disabled]="isNextDisabled" [ngClass]="{ 'button_disable': isNextDisabled }"><ion-icon name="cloud-upload"></ion-icon></ion-fab-button>
+    <div class="empty-space"></div>
+  </ion-fab>
+  <ion-fab class="fab-2">
+    <div class="empty-space"></div>
+    <ion-fab-button [disabled]="isDecreaseDisabled" [ngClass]="{ 'button_disable': isDecreaseDisabled }" >
+      <ion-icon name="ellipsis-horizontal-outline" (mousedown)="decreaseSensitivity()"></ion-icon>
+    </ion-fab-button>
+    <ion-fab-button class="non-clickable-button">
+      <span>{{ sensitivityText }}</span>
+    </ion-fab-button>
+    <ion-fab-button [disabled]="isIncreaseDisabled" [ngClass]="{ 'button_disable': isIncreaseDisabled }" >
+      <ion-icon name="apps-outline" (mousedown)="increaseSensitivity()"></ion-icon>
+    </ion-fab-button>
+    <div class="empty-space"></div>
+    <ion-fab-button
+      class="button-secondary"
+      (mousedown)="holdNumbers()"
+      (mouseup)="releaseNumbers()"
+      (touchstart)="holdNumbers()"
+      (touchend)="releaseNumbers()">
+      <ion-icon class="button-eye-numbers"></ion-icon>
+    </ion-fab-button>
+    
+    <ion-fab-button
+      class="button-secondary"
+      (mousedown)="holdCircles()"
+      (mouseup)="releaseCircles()"
+      (touchstart)="holdCircles()"
+      (touchend)="releaseCircles()">
+      <ion-icon class="button-eye-circles"></ion-icon>
+    </ion-fab-button>
+    <div class="empty-space"></div>
+  </ion-fab>
+</div>

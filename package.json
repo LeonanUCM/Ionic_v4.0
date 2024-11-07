@@ -1,0 +1,14 @@
+// This JSON snippet represents a list of dependencies for a project. Each key-value pair inside the
+// "dependencies" object specifies a package name along with its version number. This is commonly used
+// in package management systems like npm or yarn to ensure that the project has the required
+// dependencies installed with the specified versions.
+{
+  "dependencies": {
+    "@capacitor/filesystem": "^6.0.1",
+    "@capacitor/share": "^6.0.2",
+    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow/tfjs-core": "^4.21.0",
+    "@tensorflow/tfjs-layers": "^4.21.0",
+    "@types/uuid": "^10.0.0"
+  }
+}

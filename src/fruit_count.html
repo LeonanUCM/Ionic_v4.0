@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Detección Naranjas - v7</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <script src="./assets/js/predict.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./assets/css/sytles_predict.css">
+</head>
+<body>
+    <!-- Indicador de Carga -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <div id="statusMessage">Espera...</div>
+    </div>
+
+    <div class="main-container">
+        <h3>Detección de Frutos</h3>
+
+        <div class="upload-container">
+          <br/>
+            <input type="file" id="imageUpload" accept="image/*" class="file-input">
+            <input type="file" id="cameraUpload" accept="image/*" capture="environment" class="file-input">
+            <label for="imageUpload" class="button button-open-photo"></label>
+            <label for="cameraUpload" class="button button-open-camera"></label>
+            <br/><br/><br/>
+          </div>
+
+        <!-- Slider para ajustar el confidence_threshold -->
+        <div id="resultContainer" class="result-container">
+            <div id="sensitivityContainer" class="sensitivity-container">
+                <div class="slider-container">
+                    <img onclick="document.getElementById('confidenceSlider').stepDown();document.getElementById('confidenceSlider').dispatchEvent(new Event('input'));"" class="button-sensitivity-less button"/>
+                    <input type="range" id="confidenceSlider" min="1" max="10" step="1" value="5" class="slider">
+                    <img onclick="document.getElementById('confidenceSlider').stepUp();document.getElementById('confidenceSlider').dispatchEvent(new Event('input'));"" class="button-sensitivity-more button"/>
+                </div>
+                Sensibilidad: <span id="thresholdValue">5</span>
+            </div>
+            <div id="canvasContainer" class="result-canvas">
+                <canvas id="resultCanvas"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+</body>

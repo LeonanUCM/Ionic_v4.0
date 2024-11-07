@@ -1,0 +1,184 @@
+/* In portrait mode, the canvas should occupy the space between the header and footer */
+.result-content {
+    overflow: hidden; /* Prevent scroll */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* In portrait mode, the canvas adjusts proportionally */
+.result-canvas {
+    object-fit: contain; /* Adjust to keep aspect ratio */
+    border-radius: var(--ion-border-radius);
+}
+
+/* Capa para los FABs que no se escala */
+.fab-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none; /* Permite que los eventos pasen a través si es necesario */
+    transform-origin: 0 0;
+    transform: scale(1);
+    z-index: 1000; /* Asegura que esté por encima del contenido */
+}
+
+/* Reactivar los eventos de puntero para los FABs */
+.fab-overlay ion-fab {
+    pointer-events: auto;
+}
+
+.fab-1 {
+    flex-direction: row;
+    height: 10vh;
+    width: 100vw;
+    top: 4vh;
+}
+
+.fab-2 {
+    flex-direction: row;
+    height: 10vh;
+    width: 100vw;
+    top: 86vh;
+}
+
+@media (orientation: landscape) {
+.fab-1 {
+    flex-direction: column;
+    height: 100vh;
+    width: 5vw;
+    top: 0px;
+    left: 5vw;
+}
+}
+
+
+@media (orientation: landscape) {
+.fab-2 {
+    flex-direction: column;
+    height: 100vh;
+    width: 5vw;
+    top: 0px;
+    left: 90vw;
+}
+}
+
+ion-icon {
+    opacity: 0.9; /* Set opacity to 1 to remove transparency */
+    aspect-ratio: 1 / 1; /* Maintain aspect ratio */
+    min-width: 70%;
+    max-width: 70%;
+    min-height: 70%;
+    max-height: 70%;
+}
+
+
+ion-fab-button {
+    opacity: 0.9; /* Set opacity to 1 to remove transparency */
+    --border-radius: 25%; /* Ensures the button remains circular */
+    aspect-ratio: 1 / 1; /* Maintain aspect ratio */
+    min-width: 9vmin;
+    max-width: 9vmin;
+    min-height: 9vmin;
+    max-height: 9vmin;
+    box-shadow: 3px 3px 10px 0 rgba(0, 0, 0, 0.2) !important; /* Box shadow */
+}
+
+ion-fab-button[disabled] {
+    @extend .button_disable;
+}
+
+.button_disable {
+    opacity: 0.3;
+}
+
+.non-clickable-button {
+    --background: var(--ion-color-gray);
+    pointer-events: none; /* Makes the button non-clickable */
+    min-width: 5vmin;
+    max-width: 5vmin;
+    min-height: 5vmin;
+    max-height: 5vmin;
+}
+
+
+.non-clickable-button span {
+    font-size: 2vmin; /* Adjusts the size of the text */
+    color: #000; /* Sets the text color */
+}
+
+/* BUTTON SPECIFIC STYLES */
+
+.empty-space {
+    @extend .button;
+    width: 100%;
+    height: 100%;
+  }
+  
+.button {
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: contain;
+    border-radius: 5px;
+    cursor: pointer;
+    display: inline-block;
+    border: none;
+    transition: border 0.3s ease;
+    aspect-ratio: 1 / 1;
+    min-width: 8vmin;
+    max-width: 8vmin;
+    min-height: 8vmin;
+    max-height: 8vmin;
+}
+
+
+.button-secondary {
+    @extend .button;
+    --background: var(--ion-color-secondary);
+    --color: var(--ion-color-tertiary);
+}
+
+.button-icon {
+    @extend .button;
+    background-color: transparent;
+    opacity: 0.9; /* Set opacity to 1 to remove transparency */
+    aspect-ratio: 1 / 1; /* Maintain aspect ratio */
+    min-width: 80%;
+    max-width: 80%;
+    min-height: 80%;
+    max-height: 80%;
+}
+
+.button-eye-numbers {
+    @extend .button-icon;
+    background-image: url('/assets/images/icon_numbers_123.png');
+  }
+  
+  .button-eye-circles {
+    @extend .button-icon;
+    background-image: url('/assets/images/icon_circles.png');
+}
+  
+
+.button-eye-numbers {
+    @extend .button-icon;
+    background-image: url('/assets/images/icon_numbers_123.png');
+  }
+  
+.button-home {
+    @extend .button-icon;
+    background-image: url('/assets/images/agroseguro-logo-simple.png');
+    color: var(--ion-color-dark);
+    background-color: var(--ion-color-light);
+    min-width: 100%;
+    max-width: 100%;
+    min-height: 100%;
+    max-height: 100%;  
+}
+  
+.button-home:active {
+    transform: scale(0.90); /* Slightly shrink the button on click */
+    box-shadow: 1px 1px 5px rgba(0, 0, 0, 0.2); /* Reduce shadow on click */
+}

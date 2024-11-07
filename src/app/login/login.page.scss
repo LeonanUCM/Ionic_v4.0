@@ -1,0 +1,68 @@
+ion-content {
+    --ion-background-color: #ffffff;
+}
+
+#welcome-label {
+    color: black;
+    font-size: 1.6em;
+    font-weight: 500;
+    font-family: 'Montserrat';
+}
+
+ion-item {
+    --background: #fafafa;
+    --border-color: #ffffff;
+    border-radius: 5px;
+    border-style: solid;
+    border-width: 1px;
+
+    color: #6C757D;
+    font-weight: 500;
+    font-family: 'Montserrat';
+}
+
+ion-icon[name="eye-outline"],
+ion-icon[name="eye-off-outline"] {
+    font-size: 24px;
+    color: #777;
+    cursor: pointer;
+}
+
+ion-input {
+    --highlight-color-focused: #007C2A;
+    --highlight-color-invalid: #007C2A;
+    --highlight-color-valid: #007C2A;
+}
+
+ion-radio {
+    color: #6C757D;
+    font-weight: 600;
+    font-family: 'Montserrat';
+
+    --color: #666666;
+    --color-checked: #666666;
+}
+
+#forgot-label {
+    color: #212529;
+    font-family: 'Montserrat';
+}
+
+#forgot-link {
+    color: #212529;
+    font-weight: bold;
+    font-family: 'Montserrat';
+    text-decoration: none;
+}
+
+#login-button {
+    --background: #007C2A;
+    font-weight: 600;
+    font-family: 'Montserrat';
+}
+
+#offline-button {
+    --background: #666666;
+    font-weight: 600;
+    font-family: 'Montserrat';
+}
