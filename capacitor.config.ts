@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'io.ionic.starter',
-  appName: 'Frutos2_0',
+  appId: 'io.agroseguro.frutosai20',
+  appName: 'AgroSeguro Frutos AI 1.0',
   webDir: 'www',
     android: {
     allowMixedContent: true,

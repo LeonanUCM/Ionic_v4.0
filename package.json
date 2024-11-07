@@ -1,5 +1,5 @@
 {
-  "name": "Frutos2_0",
+  "name": "frutos2.0",
   "version": "0.0.1",
   "author": "Ionic Framework",
   "homepage": "https://ionicframework.com/",
@@ -9,7 +9,11 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "lint": "ng lint"
+    "lint": "ng lint",
+    "clean_cache": "npm cache clean --force",
+    "clean_node_modules": "powershell -Command \"Remove-Item package-lock.json, node_modules -Recurse -Force -ErrorAction SilentlyContinue\"",
+    "clean_android": "powershell -Command \"Remove-Item .\\.angular\\cache\\, www, android\\build -Recurse -Force -ErrorAction SilentlyContinue\"",
+    "install_packages": "npm install"
   },
   "private": true,
   "dependencies": {
