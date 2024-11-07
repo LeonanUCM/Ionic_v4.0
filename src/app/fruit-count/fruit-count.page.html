@@ -1,6 +1,4 @@
 <ion-content class="result-content">
-  <input type="file" id="imageUpload" accept="image/*" hidden multiple/>
-    <input type="file" id="cameraUpload" accept="image/*" capture="environment" hidden/>
     <canvas id="resultCanvas" class="result-canvas"></canvas>
 </ion-content>
 <div class="fab-overlay">
@@ -8,7 +6,9 @@
     <div class="empty-space"></div>
     <ion-fab-button (click)="goBack()"><ion-icon class="button-home"></ion-icon></ion-fab-button>
     <div class="empty-space"></div>
+    <input type="file" id="imageUpload" (change)="fruitCountService.handleImageUpload($event)" accept="image/*" hidden multiple>
     <ion-fab-button (click)="triggerFileInput('imageUpload')"><ion-icon name="images-outline"></ion-icon></ion-fab-button>
+    <input type="file" id="cameraUpload" capture="environment" (change)="fruitCountService.handleImageUpload($event)" accept="image/*" hidden>
     <ion-fab-button (click)="triggerFileInput('cameraUpload')"><ion-icon name="camera-outline"></ion-icon></ion-fab-button>
     <div class="empty-space"></div>
     <ion-fab-button (click)="fruitCountService.shareCanvasImage('social')"><ion-icon name="share-social-outline"></ion-icon></ion-fab-button>

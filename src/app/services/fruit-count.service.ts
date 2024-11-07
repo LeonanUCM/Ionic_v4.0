@@ -217,9 +217,6 @@ export class FruitCountService {
   private initializeEventListeners() {
     this.log('Initializing event listeners.', 3);
 
-    // Add event listeners for image and camera uploads and confidence slider
-    document.getElementById('imageUpload')?.addEventListener('change', this.handleImageUpload.bind(this));
-    document.getElementById('cameraUpload')?.addEventListener('change', this.handleImageUpload.bind(this));
     this.canvas = document.getElementById('resultCanvas') as HTMLCanvasElement;
     this.ctx = this.canvas.getContext('2d');
 
