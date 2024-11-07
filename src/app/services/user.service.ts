@@ -2,102 +2,85 @@ import { Injectable } from '@angular/core';
 import { User } from '../models/user';
 import { environment } from 'src/environments/environment';
 import { CapacitorHttp, HttpResponse } from '@capacitor/core';
-import StringCompressor from '../utilities/stringCompressor';
 
+/**
+ * Injectable class that serves as the main controller
+ * for the app's endpoints.
+ *
+ * @property {User} user - The user who has logged into the application.
+ * @property {boolean} userLoggedIn - Indicates if the user has already logged into the app (mainly used for offline mode).
+ */
 @Injectable({
   providedIn: 'root',
 })
-
-/**
- * Clase inyectable que funciona como el controlador
- * de endpoints principal de la APP.
- *
- * @property {User} user - Usuario que inicio sesión en la aplicación.
- * @property {boolean} user_log_in - Indica si el usuario ya inicio sesión en la app. (Se usa principalmente para el modo sin conexión)
- */
 export class UserService {
-  public user: User;
-  public user_log_in: boolean = false;
+  public user: User = new User();
+  public userLoggedIn: boolean = false;
 
-  constructor() {
-    this.user = new User();
-  }
+  constructor() {}
 
   /**
-   * Método encargado de intentar realizar el login de un usuario.
+   * Attempts to log in a user.
    *
-   * @param {string} user_email -
-   * @param {string} user_password -
-   * @returns string con el resultado de intento de login.
+   * @param {string} email - The user's email.
+   * @param {string} password - The user's password.
+   * @returns A string indicating the result of the login attempt.
    */
-  public async login(user_email: string, user_password: string) {
+  public async login(email: string, password: string): Promise<string | null> {
     const options = {
-      url: environment.api_url + '/auth/sign-in',
+      url: `${environment.api_url}/auth/sign-in`,
       headers: { 'Content-Type': 'application/json' },
-      data: { email: user_email, password: user_password, admin: false },
+      data: { email, password, admin: false },
     };
 
-    const response: HttpResponse = await CapacitorHttp.post(options);
-    console.log('Login request: ', options);
-
-    const userData = JSON.parse(JSON.stringify(response));
-
-    console.log('Login JSON: ', JSON.parse(JSON.stringify(response)));
-
     try {
-      // Iniciar sesion por primera vez
-      if (
-        userData.data.code === 200 &&
-        userData.data.data.session_data.challengeName ===
-          'NEW_PASSWORD_REQUIRED'
-      ) {
-        this.user.name = userData.data.data.name;
-        this.user.last_name = userData.data.data.last_name;
-        this.user.email = userData.data.data.email;
-        this.user.company = userData.data.data.company;
-        this.user_log_in = true;
-        return 'first_time_user';
-      }
+      console.log('Sending login request:', options);
+      const response: HttpResponse = await CapacitorHttp.post(options);
 
-      // Si el usuario es INACTIVE
-      else if (
-        userData.data.code === 500 &&
-        userData.data.error.error_code === 'Account is not active'
+      const userData = response.data;
+      console.log('Login response:', userData);
+
+      if (userData.code === 200) {
+        this.user.name = userData.data.name;
+        this.user.last_name = userData.data.last_name;
+        this.user.email = userData.data.email;
+        this.user.company = userData.data.company;
+        this.userLoggedIn = true;
+
+        if (userData.data.session_data.challengeName === 'NEW_PASSWORD_REQUIRED') {
+          return 'first_time_user';
+        }
+
+        this.user.session_data = {
+          userId: userData.data.session_data.userId,
+          token: userData.data.session_data.token,
+          refreshToken: userData.data.session_data.refreshToken,
+          status: userData.data.session_data.status,
+          expireIn: userData.data.session_data.expireIn,
+        };
+        console.log('User ID:', this.user.session_data.userId);
+        return 'already_registered_user';
+      } else if (
+        userData.code === 500 &&
+        userData.error?.error_code === 'Account is not active'
       ) {
         return 'inactive_user';
-      }
-
-      // Si el usuario es válido
-      else if (userData.data.code === 200) {
-        this.user.name = userData.data.data.name;
-        this.user.last_name = userData.data.data.last_name;
-        this.user.email = userData.data.data.email;
-        this.user.company = userData.data.data.company;
-
-        this.user.session_data.userId = userData.data.data.session_data.userId;
-        console.log('User ID: ', this.user.session_data.userId);
-        this.user.session_data.token = userData.data.data.session_data.token;
-        this.user.session_data.refreshToken =
-          userData.data.data.session_data.refreshToken;
-        this.user.session_data.status = userData.data.data.session_data.status;
-        this.user.session_data.expireIn =
-          userData.data.data.session_data.expireIn;
-        this.user_log_in = true;
-        return 'already_registered_user';
+      } else {
+        console.error('Login failed with code:', userData.code);
+        return null;
       }
     } catch (error) {
-      console.log('Error en metodo login: ', error);
+      console.error('Error in login method:', error);
+      return null;
     }
-
-    return null;
   }
 
   /**
-   * Método encargado de cerrar la sesión de un usuario de la app.
+   * Logs off the user from the app.
    */
-  public async logOff() {
+  public async logOff(): Promise<void> {
     const options = {
-      url: environment.api_url + '/auth/logout',
+      url: `${environment.api_url}/auth/logout`,
       headers: {
         'Content-Type': 'application/json',
         Authorization: this.user.session_data.token,
@@ -107,93 +90,85 @@ export class UserService {
 
     try {
       const response: HttpResponse = await CapacitorHttp.post(options);
-      if (response.status >= 200 && response.status <= 300) {
-        console.log('Sesión cerrada exitosamente');
+      if (response.status >= 200 && response.status < 300) {
+        console.log('Session ended successfully');
       } else {
-        console.log('La sesión no pudo ser cerrada');
+        console.warn('The session could not be ended');
       }
-      this.user_log_in = false;
+      this.userLoggedIn = false;
     } catch (error) {
-      console.log('Error en metodo logOff');
+      console.error('Error in logOff method:', error);
     }
   }
 
   /**
-   * Método que se encarga de cambiar la contraseña del
-   * usuario que está actualmente conectado en la app.
+   * Changes the password for the currently logged-in user.
+   * Used when the user logs in for the first time with a temporary password.
    *
-   * Este método se usa para cambiar la contraseña del usuario
-   * que entra por primera vez a la app con una contraseña temporal.
-   *
-   * @param {string} newPassword - Nueva contraseña para el usuario.
-   * @returns true o false si la contraseña pudo ser cambiada.
+   * @param {string} newPassword - The new password for the user.
+   * @returns True if the password was changed successfully, false otherwise.
    */
-  public async setPassword(newPassword: string) {
+  public async setPassword(newPassword: string): Promise<boolean> {
     const options = {
-      url: environment.api_url + '/auth/set-user-password',
+      url: `${environment.api_url}/auth/set-user-password`,
       headers: { 'Content-Type': 'application/json' },
       data: { email: this.user.email, password: newPassword },
     };
 
     try {
       const response: HttpResponse = await CapacitorHttp.post(options);
-      if (response.status >= 200 && response.status <= 300) {
-        console.log('Contraseña cambiada exitosamente');
+      if (response.status >= 200 && response.status < 300) {
+        console.log('Password changed successfully');
         return true;
       } else {
-        console.log('La contraseña no pudo ser cambiada');
+        console.warn('Password could not be changed');
         return false;
       }
     } catch (error) {
-      console.log('Error en metodo setPassword');
+      console.error('Error in setPassword method:', error);
+      return false;
     }
-
-    return false;
   }
 
   /**
-   * Método encargado de enviar el correo con la clave
-   * de validación previo a cambiar la contraseña de un
-   * usuario.
+   * Sends a recovery email with a validation code before changing a user's password.
    *
-   * @param {string} userEmail - C
-   * @returns true o false si pudo enviar el correo de recuperación.
+   * @param {string} userEmail - The user's email.
+   * @returns True if the recovery email was sent successfully, false otherwise.
    */
-  public async recoverPassword(userEmail: string) {
+  public async recoverPassword(userEmail: string): Promise<boolean> {
     const options = {
-      url: environment.api_url + '/auth/recover-password',
+      url: `${environment.api_url}/auth/recover-password`,
       headers: { 'Content-Type': 'application/json' },
       data: { email: userEmail },
     };
 
     try {
       const response: HttpResponse = await CapacitorHttp.post(options);
-      if (response.status >= 200 && response.status <= 300) {
-        console.log('Se envió el correo de recuperación exitosamente');
+      if (response.status >= 200 && response.status < 300) {
+        console.log('Recovery email sent successfully');
         this.user.email = userEmail;
         return true;
       } else {
-        console.log('No se pudo enviar el correo de recuperación');
+        console.warn('Recovery email could not be sent');
         return false;
       }
     } catch (error) {
-      console.log('Error en metodo recoverPassword');
+      console.error('Error in recoverPassword method:', error);
+      return false;
     }
-
-    return false;
   }
 
   /**
-   * Método encargado de cambiar la contraseña del usuario
-   * al que se le envió el correo de recuperación.
+   * Changes the password for the user who received the recovery email.
    *
-   * @param {string} newPassword - Nueva contraseña para el usuario.
-   * @param {string} confirmationCode - Confirmación de nueva contraseña para el usuario.
-   * @returns
+   * @param {string} newPassword - The new password for the user.
+   * @param {string} confirmationCode - The confirmation code from the recovery email.
+   * @returns True if the password was reset successfully, false otherwise.
    */
-  public async resetPassword(newPassword: string, confirmationCode: string) {
+  public async resetPassword(newPassword: string, confirmationCode: string): Promise<boolean> {
     const options = {
-      url: environment.api_url + '/auth/reset-password',
+      url: `${environment.api_url}/auth/reset-password`,
       headers: { 'Content-Type': 'application/json' },
       data: {
         email: this.user.email,
@@ -204,29 +179,28 @@ export class UserService {
 
     try {
       const response: HttpResponse = await CapacitorHttp.post(options);
-      if (response.status >= 200 && response.status <= 300) {
-        console.log('Se cambio la contraseña exitosamente');
+      if (response.status >= 200 && response.status < 300) {
+        console.log('Password reset successfully');
         return true;
       } else {
-        console.log('No se pudo cambiar la contraseña');
+        console.warn('Password could not be reset');
         return false;
       }
     } catch (error) {
-      console.log('Error en metodo resetPassword');
+      console.error('Error in resetPassword method:', error);
+      return false;
     }
-
-    return false;
   }
 
   /**
-   * Método encargado de subir al backend la data de un análisis.
+   * Uploads analysis data to the backend.
    *
-   * @param {any} resultData - JSON que contiene toda la data de un análisis.
-   * @returns true o false si pudo guardar la data de análisis.
+   * @param {any} resultData - JSON containing all the data of an analysis.
+   * @returns True if the analysis data was saved successfully, false otherwise.
    */
-  public async saveResultData(resultData: any) {
+  public async saveResultData(resultData: any): Promise<boolean> {
     const options = {
-      url: environment.api_url + '/photo/data',
+      url: `${environment.api_url}/photo/data`,
       headers: {
         'Content-Type': 'application/json',
         Authorization: this.user.session_data.token,
@@ -255,104 +229,73 @@ export class UserService {
 
     try {
       const response: HttpResponse = await CapacitorHttp.post(options);
-      if (response.status >= 200 && response.status <= 300) {
-        console.log('Se guardo la data de resultado exitosamente');
+      if (response.status >= 200 && response.status < 300) {
+        console.log('Result data saved successfully');
         return true;
       } else {
-        console.log('No se pudo guardar la data de resultado ', response);
+        console.warn('Result data could not be saved:', response);
         return false;
       }
     } catch (error) {
-      console.log('Error en metodo saveResultData');
+      console.error('Error in saveResultData method:', error);
+      return false;
     }
-
-    return false;
   }
 
   /**
-   * Método encargado de subir a S3 la imagen resultante
-   * u original de un análisis.
+   * Uploads the result or original image of an analysis to S3.
    *
-   * @param {any} resultData - JSON que contiene toda la data de un análisis. (importa es el UUID, la imagen original y resultante)
-   * @param {any} isResultImage - Indica si la imagen que se va a subir es la original (false) o la de resultado (true).
-   * @returns true o false si pudo subir la imagen.
+   * @param {any} resultData - JSON containing all the data of an analysis.
+   * @param {boolean} isResultImage - Indicates if the image to be uploaded is the original (false) or the result image (true).
+   * @returns True if the image was uploaded successfully, false otherwise.
    */
-  public async uploadImage(resultData: any, isResultImage: boolean) {
-    let options;
+  public async uploadImage(resultData: any, isResultImage: boolean): Promise<boolean> {
+    const imageType = isResultImage ? 'result' : 'original';
+    console.log(`Uploading ${imageType} image`);
 
-    if (isResultImage) {
-      // Subir imagen resultado
-      console.log('Subiendo imagen resultado');
-
-      options = {
-        url: environment.api_url + '/photo',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: this.user.session_data.token,
-        },
-        data: {
-          name: resultData.result_UUID + '-result',
-          file: resultData.result_image,
-          result: true,
-        },
-      };
-    } else {
-      // Subir imagen original
-      console.log('Subiendo imagen original');
-
-      options = {
-        url: environment.api_url + '/photo',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: this.user.session_data.token,
-        },
-        data: {
-          name: resultData.result_UUID + '-original',
-          file: resultData.original_image,
-          result: false,
-        },
-      };
-    }
+    const options = {
+      url: `${environment.api_url}/photo`,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: this.user.session_data.token,
+      },
+      data: {
+        name: `${resultData.result_UUID}-${imageType}`,
+        file: isResultImage ? resultData.result_image : resultData.original_image,
+        result: isResultImage,
+      },
+    };
 
     try {
       const response: HttpResponse = await CapacitorHttp.post(options);
-      if (response.status >= 200 && response.status <= 300) {
-        console.log('Se guardaron las imagenes exitosamente');
+      if (response.status >= 200 && response.status < 300) {
+        console.log(`${imageType.charAt(0).toUpperCase() + imageType.slice(1)} image uploaded successfully`);
         return true;
       } else {
-        console.log('No se pudo guardar las imagenes');
+        console.warn(`${imageType.charAt(0).toUpperCase() + imageType.slice(1)} image could not be uploaded`);
         return false;
       }
     } catch (error) {
-      console.log('Error en metodo uploadImage: ', error);
+      console.error('Error in uploadImage method:', error);
+      return false;
     }
-
-    return false;
   }
 
   /**
-   * Método encargado de enviar un correo reporte con algún
-   * tipo de error que se haya presentado en la app para el usuario.
+   * Sends an error report email with any issue encountered by the user in the app.
    *
-   * @param {string} error_type - Tipo de error presentado.
-   * @param {string} error_description - Descripción del error presentado.
-   * @returns true o false si pudo enviar el correo de reporte de error.
+   * @param {string} errorType - The type of error encountered.
+   * @param {string} errorDescription - A description of the error encountered.
+   * @returns True if the error report email was sent successfully, false otherwise.
    */
-  public async uploadErrorReport(
-    error_type?: string,
-    error_description?: string
-  ) {
-    let requestData: any;
-
-    // Verificar que si se ingreso descripción
-    if (error_description === undefined || error_description === '') {
-      requestData = { problem: error_type };
-    } else {
-      requestData = { problem: error_type, description: error_description };
-    }
+  public async uploadErrorReport(errorType: string, errorDescription?: string): Promise<boolean> {
+    const requestData: any = {
+      problem: errorType,
+      ...(errorDescription && { description: errorDescription }),
+    };
 
     const options = {
-      url: environment.api_url + '/system/report-problem',
+      url: `${environment.api_url}/system/report-problem`,
       headers: {
         'Content-Type': 'application/json',
         Authorization: this.user.session_data.token,
@@ -362,29 +305,27 @@ export class UserService {
 
     try {
       const response: HttpResponse = await CapacitorHttp.post(options);
-      if (response.status >= 200 && response.status <= 300) {
-        console.log('Correo de reporte enviado exitosamente');
+      if (response.status >= 200 && response.status < 300) {
+        console.log('Error report email sent successfully');
         return true;
       } else {
-        console.log('No se pudo enviar el correo de reporte');
+        console.warn('Error report email could not be sent');
         return false;
       }
     } catch (error) {
-      console.log('Error en metodo uploadErrorReport');
+      console.error('Error in uploadErrorReport method:', error);
+      return false;
     }
-
-    return false;
   }
 
   /**
-   * Método encargado de refrescar el token del usuario conectado
-   * actualmente en la app.
+   * Refreshes the token of the currently logged-in user.
    *
-   * @returns true o false si pudo refrescar el token.
+   * @returns True if the token was refreshed successfully, false otherwise.
    */
-  public async refreshToken() {
+  public async refreshToken(): Promise<boolean> {
     const options = {
-      url: environment.api_url + '/auth/refresh-token',
+      url: `${environment.api_url}/auth/refresh-token`,
       headers: {
         'Content-Type': 'application/json',
         user_id: this.user.session_data.userId,
@@ -394,23 +335,24 @@ export class UserService {
 
     try {
       const response: HttpResponse = await CapacitorHttp.post(options);
-      if (response.status >= 200 && response.status <= 300) {
-        const result = JSON.parse(JSON.stringify(response));
-        this.user.session_data.token = result.data.data.token;
-        this.user.session_data.refreshToken = result.data.data.refresh_token;
-        this.user.session_data.userId = result.data.data.user_id;
-        this.user.session_data.expireIn = result.data.data.expire_in;
-
-        console.log('Se ha refrescado el token exitosamente');
+      if (response.status >= 200 && response.status < 300) {
+        const resultData = response.data.data;
+        this.user.session_data = {
+          token: resultData.token,
+          refreshToken: resultData.refresh_token,
+          userId: resultData.user_id,
+          status: resultData.status,
+          expireIn: resultData.expire_in,
+        };
+        console.log('Token refreshed successfully');
         return true;
       } else {
-        console.log('No se pudo refrescar el token');
+        console.warn('Token could not be refreshed');
         return false;
       }
     } catch (error) {
-      console.log('Error en metodo refreshToken: ', error);
+      console.error('Error in refreshToken method:', error);
+      return false;
     }
-
-    return false;
   }
 }

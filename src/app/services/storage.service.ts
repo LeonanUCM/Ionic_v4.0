@@ -2,84 +2,86 @@ import { Injectable } from '@angular/core';
 import { Storage } from '@ionic/storage-angular';
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 
 /**
- * Clase inyectable para manejar una base de datos local
- * No-Sql Clave - Valor.
- * 
- * @property {Storage | null} _storage - Instancia de la base de datos.
+ * Injectable class to manage a local NoSQL Key-Value database.
+ *
+ * @property {Storage | null} _storage - Instance of the database.
  */
 export class StorageService {
   private _storage: Storage | null = null;
+  private storageReady: Promise<void>;
 
   constructor(private storage: Storage) {
-    this.init();
+    this.storageReady = this.init();
   }
 
   /**
-   * Método encargado de inicializar la BD local.
+   * Initializes the local database.
    */
-  async init() {
-    const storage = await this.storage.create();
-    this._storage = storage;
+  private async init(): Promise<void> {
+    this._storage = await this.storage.create();
   }
 
   /**
-   * Método encargado de guardar un elemento en la BD.
-   * 
-   * @param {string} key - Llave del elemento a almacenar.
-   * @param {any} value - Contenido a almacenar.
+   * Saves an item in the database.
+   *
+   * @param {string} key - Key of the item to store.
+   * @param {any} value - Content to store.
    */
-  public async set(key: string, value: any) {
+  public async set(key: string, value: any): Promise<void> {
+    await this.storageReady;
     await this._storage?.set(key, value);
   }
 
   /**
-   * Método para obtener el contenido de un elemento.
-   * 
-   * @param {string} key - Llave del elemento a obtener su contenido.
-   * @returns Contenido almacenado para la llave dada.
+   * Retrieves the content of an item.
+   *
+   * @param {string} key - Key of the item to retrieve.
+   * @returns The content stored for the given key.
    */
-  public async get(key: string) {
+  public async get(key: string): Promise<any> {
+    await this.storageReady;
     return await this._storage?.get(key);
   }
 
   /**
-   * Método encargado de eliminar un elemento.
-   * 
-   * @param {string} key -  Llave del elemento a eliminar.
-   * @returns Promesa que indica si el valor fue eliminado o no.
+   * Removes an item from the database.
+   *
+   * @param {string} key - Key of the item to remove.
    */
-  public async remove(key: string) {
-    return await this._storage?.remove(key);
+  public async remove(key: string): Promise<void> {
+    await this.storageReady;
+    await this._storage?.remove(key);
   }
 
   /**
-   * Método encargado de vaciar completamente la BD.
+   * Clears the entire database.
    */
-  public async clear() {
+  public async clear(): Promise<void> {
+    await this.storageReady;
     await this._storage?.clear();
   }
 
   /**
-   * Método que se encarga de consultar todas las llaves
-   * de elementos almacenados en la BD.
-   * 
-   * @returns Todas las llaves almacenadas en la BD.
+   * Retrieves all the keys of items stored in the database.
+   *
+   * @returns An array of all keys stored in the database.
    */
-  public async keys() {
-    return await this._storage?.keys();
+  public async keys(): Promise<string[]> {
+    await this.storageReady;
+    return await this._storage?.keys() || [];
   }
 
   /**
-   * Método que se encarga de consultar la cantidad de
-   * elementos almacenados en la BD.
-   * 
-   * @returns Cantidad de elementos almacenados en DB.
+   * Retrieves the number of items stored in the database.
+   *
+   * @returns The number of items stored in the database.
    */
-  public async length() {
-    return await this._storage?.length();
+  public async length(): Promise<number> {
+    await this.storageReady;
+    return await this._storage?.length() || 0;
   }
 }

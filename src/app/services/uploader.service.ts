@@ -4,14 +4,13 @@ import { UserService } from './user.service';
 import { Network } from '@capacitor/network';
 import { LoadingController } from '@ionic/angular';
 
+/**
+ * Injectable class to handle the automatic upload of
+ * analyses stored in the local database to the backend.
+ */
 @Injectable({
   providedIn: 'root',
 })
-
-/**
- * Clase inyectable para manejar la subida automática de
- * análisis almacenados en la BD local al backend.
- */
 export class UploaderService {
   constructor(
     private storageService: StorageService,
@@ -20,130 +19,132 @@ export class UploaderService {
   ) {}
 
   /**
-   * Método que se encarga de revisar si el usuario está
-   * conectado, si hay internet y si hay análisis almacenados
-   * en la BD local.
+   * Method responsible for checking if the user is logged in,
+   * if there is internet connectivity, and if there are analyses
+   * stored in the local database.
    *
-   * Sí se cumple, se genera una estructura auxiliar compuesta
-   * de los análisis pendientes, los cuales se suben uno a uno
-   * su data a backend y sus imagenes a S3, y en caso de no haber
-   * fallos, se eliminan de la BD local.
+   * If conditions are met, it generates an auxiliary structure
+   * composed of the pending analyses, which are uploaded one by one:
+   * their data to the backend and their images to S3. In case of no errors,
+   * they are removed from the local database.
    *
-   * @param {string} loaderMessage - Indica el mensaje que debe mostrarse en el loader. (si aplica)
-   * @param {boolean} showLoader - Indica si debe mostrarse o no un loader de la subida. (Por si se quiere usar este método en segundo plano)
+   * @param {string} loaderMessage - The message to be displayed in the loader (if applicable).
+   * @param {boolean} showLoader - Indicates whether to show a loader during the upload.
    */
-  async UploadPreviousAnalyses(
-    loaderMessage: string,
-    showLoader: boolean = true
-  ) {
-    // Refrescar token
-    await this.userService.refreshToken();
+  async uploadPreviousAnalyses(loaderMessage: string, showLoader: boolean = true) {
+    try {
+      // Refresh token
+      await this.userService.refreshToken();
 
-    const status = await Network.getStatus();
-    let pending_analyses: boolean;
+      const { connected } = await Network.getStatus();
+      const pendingAnalyses = await this.pendingAnalyses();
 
-    await this.pendingAnalyses().then((value) => {
-      pending_analyses = value;
-    });
+      console.log('Are there pending analyses?: ', pendingAnalyses);
+      console.log('Is user logged in?: ', this.userService.userLoggedIn);
+      console.log('Is internet available?: ', connected);
 
-    console.log('Hay análisis pendientes?: ', pending_analyses);
-    console.log('Usuario conectado?: ', this.userService.user_log_in);
-    console.log('Hay internet?: ', status.connected);
+      if (connected && this.userService.userLoggedIn && pendingAnalyses) {
+        console.log('Starting upload of previous analyses...');
 
-    if (status.connected && this.userService.user_log_in && pending_analyses) {
-      console.log('Iniciando carga de analisis previos..');
-
-      const loading = await this.loadingController.create({
-        cssClass: 'custom-loading',
-        message: loaderMessage,
-      });
-      if (showLoader) loading.present();
-
-      try {
-        const result = await this.storageService.keys();
-        let pending_uploads = [];
-        let hubo_errores: boolean = false;
-        let keysToDelete = [];
-
-        // Consultar todos los elementos en DB menos las credenciales de usuario
-        for (const element of result) {
-          if (element !== 'login_credentials') {
-            console.log('A guardar: ', element);
-            pending_uploads.push(await this.storageService.get(element));
-            keysToDelete.push(element);
-          }
+        let loading;
+        if (showLoader) {
+          loading = await this.loadingController.create({
+            cssClass: 'custom-loading',
+            message: loaderMessage,
+          });
+          await loading.present();
         }
 
-        // Recorrer la lista auxiliar con los análisis por subir
-        for (let index = 0; index < pending_uploads.length; index++) {
-          const element = pending_uploads[index];
-          //console.log("pending upload elements", element);
-
-          // Subir datos de análisis
-          if (!(await this.userService.saveResultData(element))) {
-            // Detener inmediatamente si hubo error
-            hubo_errores = true;
-            break;
+        // Start upload without blocking the UI
+        this.performUpload().finally(() => {
+          if (showLoader && loading) {
+            loading.dismiss();
           }
-
-          // Subir imagen resultado a S3
-          if (!(await this.userService.uploadImage(element, true))) {
-            hubo_errores = true;
-            break;
-          }
-
-          // Subir imagen original a S3
-          if (!(await this.userService.uploadImage(element, false))) {
-            hubo_errores = true;
-            break;
-          }
-        }
-
-        // Si no hubo errores, se eliminan los elementos subidos de la BD
-        if (!hubo_errores) {
-          for (const element of keysToDelete) {
-            await this.storageService.remove(element + '');
-          }
-        } else {
-          console.log(
-            'Ocurrio algun error al subir todos los resultados y se aborto la operación'
-          );
-          // Temporalmente la mejor forma de recuperarse de una falla de subida es elimando
-          // los elementos a subir, ya que uno de ello puede tener un body invalido
-          for (const element of keysToDelete) {
-            await this.storageService.remove(element + '');
-          }
-        }
-      } catch (error) {
-        console.error('Error subiendo previos análisis: ' + error);
-      } finally {
-        if (showLoader) loading.dismiss();
+        });
       }
+    } catch (error) {
+      console.error('Error uploading previous analyses: ', error);
     }
   }
 
   /**
-   * Método que se encarga de revisar si existen elementos
-   * (análisis) en la BD local, no se incluyen las credenciales
-   * del usuario.
-   *
-   * @returns true si hay análisis en la BD local, false de lo contrario.
+   * Performs the upload of analyses data and images.
    */
-  async pendingAnalyses(): Promise<boolean> {
+  private async performUpload() {
     try {
-      const result = await this.storageService.keys();
+      const keys = await this.storageService.keys();
+      const pendingUploads = [];
+      const keysToDelete = [];
 
-      for (const element of result) {
-        if (element !== 'login_credentials') {
-          return true;
+      // Retrieve all elements in DB except user credentials
+      for (const key of keys) {
+        if (key !== 'login_credentials') {
+          console.log('Preparing to upload: ', key);
+          const item = await this.storageService.get(key);
+          pendingUploads.push(item);
+          keysToDelete.push(key);
         }
       }
 
-      console.log('No hay análisis para subir');
-      return false;
+      let errorsOccurred = false;
+
+      // Iterate over the list of analyses to upload
+      for (const element of pendingUploads) {
+        // Upload analysis data
+        const dataSaved = await this.userService.saveResultData(element);
+        if (!dataSaved) {
+          // Stop immediately if there was an error
+          errorsOccurred = true;
+          break;
+        }
+
+        // Upload result image to S3
+        const resultImageUploaded = await this.userService.uploadImage(element, true);
+        if (!resultImageUploaded) {
+          errorsOccurred = true;
+          break;
+        }
+
+        // Upload original image to S3
+        const originalImageUploaded = await this.userService.uploadImage(element, false);
+        if (!originalImageUploaded) {
+          errorsOccurred = true;
+          break;
+        }
+      }
+
+      // If there were no errors, delete the uploaded elements from the DB
+      if (!errorsOccurred) {
+        for (const key of keysToDelete) {
+          await this.storageService.remove(key);
+        }
+      } else {
+        console.log(
+          'An error occurred while uploading the results, and the operation was aborted'
+        );
+        // Delete the elements to upload to avoid inconsistencies
+        for (const key of keysToDelete) {
+          await this.storageService.remove(key);
+        }
+      }
     } catch (error) {
-      console.log(
-        'Ocurrió un error al revisar si existían análisis para subir: ',
+      console.error('Error during upload: ', error);
+    }
+  }
+
+  /**
+   * Method responsible for checking if there are elements
+   * (analyses) in the local database, excluding user credentials.
+   *
+   * @returns true if there are analyses in the local database, false otherwise.
+   */
+  async pendingAnalyses(): Promise<boolean> {
+    try {
+      const keys = await this.storageService.keys();
+      return keys.some(key => key !== 'login_credentials');
+    } catch (error) {
+      console.error(
+        'An error occurred while checking for analyses to upload: ',
         error
       );
       return false;

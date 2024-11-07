@@ -1,4 +1,5 @@
 import { FruitCountService } from '../services/fruit-count.service';
+import { UploaderService } from '../services/uploader.service';
 import { Component, OnInit, AfterViewInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { LoadingController, ToastController, NavController } from '@ionic/angular';
