@@ -31,7 +31,7 @@ export class UploaderService {
    * @param {string} loaderMessage - The message to be displayed in the loader (if applicable).
    * @param {boolean} showLoader - Indicates whether to show a loader during the upload.
    */
-  async uploadPreviousAnalyses(loaderMessage: string, showLoader: boolean = true) {
+  async uploadPreviousAnalyses(loaderMessage: string, showLoader: boolean = false) {
     try {
       // Refresh token
       await this.userService.refreshToken();
@@ -44,10 +44,10 @@ export class UploaderService {
       console.log('connected=', connected);
 
       if (connected && this.userService.userLoggedIn && pendingAnalyses) {
-        console.log('Subiendo análisis anteriores a la nube...');
+        console.log('Trying to upload preivous analisys to cloud...');
 
         let loading;
-        if (showLoader) {
+        if ( showLoader) {
           loading = await this.loadingController.create({
             cssClass: 'custom-loading',
             message: loaderMessage,
@@ -63,7 +63,7 @@ export class UploaderService {
         });
       }
     } catch (error) {
-      console.error('Error al subir análisis anteriores a la nube: ', error);
+      console.error('Error while trying to upload preivous analisys to cloud: ', error);
     }
   }
 

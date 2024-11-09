@@ -293,6 +293,9 @@ export class FruitCountService {
   public async handleImageUpload(input: any) {
     this.log('Image upload triggered.', 2);
 
+    this.log('Trying to upload pending analisys in background.', 2);
+    this.uploaderService.uploadPreviousAnalyses('Trying to upload pending analisys in background', false);
+    
     let files: FileList | File[] = [];
   
     // Check if the input is an event with files or a single file URL
@@ -1312,13 +1315,13 @@ private blobToBase64(blob: Blob): Promise<string> {
 
     if (platform === "cloud") {
         // Llamada asíncrona a cloudUploadService sin detener el flujo principal
-        this.storeResults(dataUrl, dataUrlOriginal, this.fruitType, this.fruitSubType, this.totalSelectedObjects, newFilename)
-        .then(() => {
-            this.presentToast(`Imágenes y datos enviados a la nube con éxito.`, 'middle');
-        })
-        .catch((error) => {
-            this.presentToast('¿Tiene conexión a internet? Puede seguir usando la aplicación normalmente, pero los resultados no se guardarán en la nube.', 'middle');
-        });
+        this.storeResults(dataUrl, dataUrlOriginal, this.fruitType, this.fruitSubType, this.totalSelectedObjects, newFilename);
+        // .then(() => {
+        //     this.presentToast(`Imágenes y datos enviados a la nube con éxito.`, 'middle');
+        // })
+        // .catch((error) => {
+        //     this.presentToast('¿Tiene conexión a internet? Puede seguir usando la aplicación normalmente, pero los resultados no se guardarán en la nube.', 'middle');
+        // });
 
         // Hace el download para disco si esta en web browser
         if ( Capacitor.getPlatform() === 'web' ) {
@@ -1428,13 +1431,24 @@ private blobToBase64(blob: Blob): Promise<string> {
     return fruitSubType === "tree" ? "ARBOL" : "SUELO";
   }
 
+  public getFilenameWithoutExtension(filename: string): string {
+    const lastDotIndex = filename.lastIndexOf('.');
+    
+    // If there's no dot, return the original filename
+    if (lastDotIndex === -1) {
+      return filename;
+    }
+    
+    // Return the filename without the extension
+    return filename.substring(0, lastDotIndex);
+  }
 
   public async storeResults(dataUrl: string, dataUrlOriginal: string, fruitType: string, fruitSubType: string, totalSelectedObjects: number, currentFilename: string = "") : Promise<void> {
     try {
       let imageId = uuidv4();
       let corrected_quantities = 0;
       if (currentFilename !== "" && this.isUUIDv4(currentFilename)) {
-        imageId = currentFilename;
+        imageId = this.getFilenameWithoutExtension(currentFilename);
         corrected_quantities = this.extractGtNumber(currentFilename);
         if (corrected_quantities > 0)
           console.log('Corrected quantities:', corrected_quantities);
@@ -1449,8 +1463,8 @@ private blobToBase64(blob: Blob): Promise<string> {
       const type = this.mapFruitSubType(fruitSubType);
 
       const Url_base = "https://prod-agroseguro-fruit-counting-bucket.s3.amazonaws.com/images"
-      const Url_result = `${Url_base}/results/${imageId}.jpg`;
-      const Url_original = `${Url_base}/originals/${imageId}.jpg`;
+      const Url_result = `${Url_base}/results/${imageId}-result.jpg`;
+      const Url_original = `${Url_base}/originals/${imageId}-original.jpg`;
 
       console.log('Going to mount API request...');
       let resultModel = new ResultData();
@@ -1478,10 +1492,10 @@ private blobToBase64(blob: Blob): Promise<string> {
       resultModel.mode = "offline"
   
       // Guardar en BD el analisis
-      console.log('Invoking storage...');
+      console.log('Saving new analisys on storage...');
       this.storageService.set(imageId, resultModel);
       console.log('Trying to send analisys...');
-      this.uploaderService.uploadPreviousAnalyses('Subiendo previos análisis');
+      this.uploaderService.uploadPreviousAnalyses('Uploading new analisys', false);
     } catch (error) {
       console.error('Error uploading images and data to the cloud:', error);
       throw new Error('Error uploading to the cloud.');

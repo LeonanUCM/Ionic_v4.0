@@ -268,6 +268,7 @@ export class UserService {
     };
 
     try {
+      console.log('Sending image upload request:', options.data.name);
       const response: HttpResponse = await CapacitorHttp.post(options);
       if (response.status >= 200 && response.status < 300) {
         console.log(`${imageType.charAt(0).toUpperCase() + imageType.slice(1)} image uploaded successfully`);
@@ -319,6 +320,10 @@ export class UserService {
     }
   }
 
+  private delay(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+  
   /**
    * Refreshes the token of the currently logged-in user.
    *
@@ -333,27 +338,38 @@ export class UserService {
       },
       data: { refresh_token: this.user.session_data.refreshToken },
     };
-
-    try {
-      const response: HttpResponse = await CapacitorHttp.post(options);
-      if (response.status >= 200 && response.status < 300) {
-        const resultData = response.data.data;
-        this.user.session_data = {
-          token: resultData.token,
-          refreshToken: resultData.refresh_token,
-          userId: resultData.user_id,
-          status: resultData.status,
-          expireIn: resultData.expire_in,
-        };
-        console.log('Token refreshed successfully');
-        return true;
-      } else {
-        console.warn('Token could not be refreshed');
-        return false;
+  
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const response: HttpResponse = await CapacitorHttp.post(options);
+        if (response.status >= 200 && response.status <= 400) {
+          const resultData = response.data.data;
+          this.user.session_data = {
+            token: resultData.token,
+            refreshToken: resultData.refresh_token,
+            userId: resultData.user_id,
+            status: resultData.status,
+            expireIn: resultData.expire_in,
+          };
+          console.log('Token refreshed successfully');
+          return true;
+        } else {
+          console.warn('Token could not be refreshed');
+          return false;
+        }
+      } catch (error) {
+        console.error(`Error in refreshToken method (Attempt ${attempt}):`, error);
+        if (attempt < 2) {
+          console.log('Retrying refreshToken in 2 seconds...');
+          await this.delay(2000); // Wait 2 seconds before retrying
+        } else {
+          console.error('Failed to refresh token after 2 attempts');
+          return false;
+        }
       }
-    } catch (error) {
-      console.error('Error in refreshToken method:', error);
-      return false;
     }
+  
+    return false;
   }
+  
 }

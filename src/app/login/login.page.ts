@@ -19,8 +19,8 @@ import { Network } from '@capacitor/network';
   styleUrls: ['./login.page.scss'],
 })
 export class LoginPage {
-  public user_email: string = 'Leonan.Vasconcelos@newtoms.com';
-  public user_password: string = 'leonaN12345';
+  public user_email: string = '';
+  public user_password: string = '';
   public showPassword: boolean = false;
   public remind_me: boolean = true;
 
