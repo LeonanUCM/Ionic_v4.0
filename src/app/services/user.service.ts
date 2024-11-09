@@ -1,7 +1,7 @@
-import { Injectable } from '@angular/core';
 import { User } from '../models/user';
 import { environment } from 'src/environments/environment';
 import { CapacitorHttp, HttpResponse } from '@capacitor/core';
+import { Injectable } from '@angular/core';
 
 /**
  * Injectable class that serves as the main controller
@@ -223,6 +223,7 @@ export class UserService {
           corrected_big_fruits: resultData.corrected_fruit_big_quantity,
           corrected_medium_fruits: resultData.corrected_fruit_medium_quantity,
           corrected_small_fruits: resultData.corrected_fruit_small_quantity,
+          mode: resultData.mode
         },
       ],
     };

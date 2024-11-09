@@ -41,4 +41,5 @@ export class ResultData {
   corrected_fruit_small_quantity: number;
   corrected_fruit_medium_quantity: number;
   corrected_fruit_big_quantity: number;
+  mode: string;
 }

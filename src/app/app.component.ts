@@ -1,17 +1,39 @@
-/* The AppComponent class in this TypeScript code initializes the app and toggles a dark theme based on
-the user's preference. */
 import { Component } from '@angular/core';
 import { Platform } from '@ionic/angular';
+import { UserService } from './services/user.service';
+import { StorageService } from './services/storage.service';
+import { environment } from 'src/environments/environment';
 
 @Component({
   selector: 'app-root',
   templateUrl: 'app.component.html',
   styleUrls: ['app.component.scss'],
 })
+
+/**
+ * Lógica de la barra de navegación lateral.
+ *
+ * @property {string} currentPage - Representa la página actual en la que se encuentra el usuario.
+ * @property {string} appVersion - Versión actual de la aplicación.
+ */
 export class AppComponent {
-  constructor(private platform: Platform) {
-    this.initializeApp();
-  }
+
+  public currentPage: string = "Análisis de imágen";
+  public appVersion: string = environment.version;
+
+  public appPages = [
+    { title: 'Análisis de imágen', url: '/home', icon: 'image' },
+    { title: 'Sobre nosotros', url: '/about', icon: 'information-circle' },
+    { title: 'Reportar problemas', url: '/report-problem', icon: 'warning' }
+  ];
+
+  constructor(
+    private userService: UserService,
+    private storageService: StorageService,
+    private platform: Platform
+  ) { 
+      this.initializeApp(); 
+    }
 
   initializeApp() {
     this.platform.ready().then(() => {
@@ -25,7 +47,25 @@ export class AppComponent {
     });
   }
 
+  /**
+   * Método encargado de cambiar la página en el menú lateral.
+   *
+   * @param option
+   */
+  changePage(option: string) {
+    this.currentPage === option ? this.currentPage : this.currentPage = option;
+  }
+
+  /**
+   * Método encargado de cerrar la sesíon del usuario conectado.
+   */
+  cerrarSesion() {
+    this.currentPage = "Análisis de imágen";
+    this.userService.logOff();
+    this.storageService.remove('login_credentials');
+  }
   toggleDarkTheme(shouldAdd: boolean) {
     document.body.classList.toggle('dark', shouldAdd);
   }
 }
+ 

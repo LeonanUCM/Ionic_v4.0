@@ -1,5 +1,3 @@
-// This JSON configuration file is typically used in an Angular project to specify various settings for
-// the TypeScript compiler and Angular compiler. Here is a breakdown of what each key represents:
 {
   "compileOnSave": false,
   "compilerOptions": {

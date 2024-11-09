@@ -5,23 +5,22 @@ import { StorageService } from 'src/app/services/storage.service';
 import { UserService } from 'src/app/services/user.service';
 import { Network } from '@capacitor/network';
 
+/**
+ * The LoginPage component handles the logic for the login screen.
+ *
+ * @property {string} user_email - User's login email.
+ * @property {string} user_password - User's login password.
+ * @property {boolean} showPassword - Indicates if the password is visible or hidden.
+ * @property {boolean} remind_me - Determines if the session should remain active after closing the app.
+ */
 @Component({
   selector: 'app-login',
   templateUrl: './login.page.html',
   styleUrls: ['./login.page.scss'],
 })
-
-/**
- * Lógica de la pantalla de Login.
- *
- * @property {string} user_email - Email de inicio de sesión.
- * @property {string} user_password - Contraseña de inicio de sesión.
- * @property {boolean} showPassword - Indica si la contraseña está oculta o visible.
- * @property {any} remind_me - Indica si se mantendra la sesión iniciada al cerrar la app.
- */
 export class LoginPage {
-  public user_email: string = '';
-  public user_password: string = '';
+  public user_email: string = 'Leonan.Vasconcelos@newtoms.com';
+  public user_password: string = 'leonaN12345';
   public showPassword: boolean = false;
   public remind_me: boolean = true;
 
@@ -34,206 +33,164 @@ export class LoginPage {
   ) {}
 
   /**
-   * Método que se ejecuta después de cargar la página,
-   * intenta iniciar sesión automáticamente.
+   * Lifecycle hook that runs after the page has fully entered and is now the active page.
+   * Attempts to automatically log in if credentials are stored and network is available.
    */
   async ionViewDidEnter() {
-    const status = await Network.getStatus();
-    const result = this.storageService.get('login_credentials');
-
-    if (status.connected) {
-      result
-        .then((value) => {
-          if (value) {
-            const credentials = JSON.parse(value);
-            this.user_email = credentials.email;
-            this.user_password = credentials.password;
-            this.login();
-          }
-        })
-        .catch((error) => {
-          console.error('Error al recuperar credenciales: ' + error);
-        });
-    } else {
-      this.deactivateOnlineOptions();
+    try {
+      const status = await Network.getStatus();
+      if (status.connected) {
+        const storedCredentials = await this.storageService.get('login_credentials');
+        if (storedCredentials) {
+          const credentials = JSON.parse(storedCredentials);
+          this.user_email = credentials.email;
+          this.user_password = credentials.password;
+        }
+      } else {
+        await this.deactivateOnlineOptions();
+      }
+    } catch (error) {
+      console.error('Error al recuperar credenciales:', error);
     }
   }
 
   /**
-   * Método que cambia la visibilidad de contraseña
-   * entre visible y no visible.
+   * Toggles the visibility of the password field.
    */
   togglePasswordVisibility() {
     this.showPassword = !this.showPassword;
   }
 
   /**
-   * Método que se encarga de hacer las revisiones pertinentes
-   * antes de iniciar sesión. Si no hay inconvenientes, guarda las
-   * credenciales en la BD local (si aplica) y luego invoca el método login.
+   * Validates the input fields before attempting to log in.
+   * Stores credentials if applicable and initiates the login process.
    */
   public async checkValues() {
     let error_message: string = '';
-    let error_title: string = 'Errores detectados';
+    let error_title: string = 'Error';
     const status = await Network.getStatus();
 
-    // Verificar que tenga internet
     if (!status.connected) {
-      error_title = 'No hay conexión';
+      error_title = 'Sin conexión a Internet';
       error_message =
-        'Parece que no tienes conexion a internet, puedes ingresar usando el modo desconectado.';
-    }
-
-    // Verificar que se haya ingresado un correo
-    else if (this.user_email === undefined || this.user_email === '') {
+        'No se detectó conexión a Internet. Puedes seguir usando la app; los datos se subirán automáticamente a la nube más tarde.';
+    } else if (!this.user_email) {
       error_message = 'No has ingresado un correo.';
-    }
-
-    // Verificar que el correo sea válido
-    else if (
+    } else if (
       !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(this.user_email)
     ) {
       error_message = 'El correo ingresado no es válido.';
-    }
-
-    // Verificar que se haya ingresado una contraseña
-    else if (this.user_password === undefined || this.user_password === '') {
+    } else if (!this.user_password) {
       error_message = 'No has ingresado contraseña.';
+    } else if (/\s/g.test(this.user_password)) {
+      error_message = 'La contraseña ingresada no puede contener espacios en blanco.';
     }
 
-    // Verificar que la contraseña no contenga espacios en blanco
-    else if (/\s/g.test(this.user_password)) {
-      error_message = 'La contraseña ingresada contiene espacios en blanco.';
-    }
-
-    // Mostrar algun error si aplica
-    if (error_message.length > 1) {
+    if (error_message) {
       const alert = await this.alertController.create({
         cssClass: 'custom-alert',
         header: error_title,
         message: error_message,
-        buttons: [
-          {
-            cssClass: 'alert-button-confirm',
-            text: 'Ok',
-          },
-        ],
+        buttons: [{ cssClass: 'alert-button-confirm', text: 'Ok' }],
       });
-
       await alert.present();
     } else {
-      // Guardar credenciales
-      if (this.remind_me) this.storageCredentials();
-
-      // Intentar iniciar sesion
-      this.login();
+      if (this.remind_me) {
+        this.storeCredentials();
+      }
+      await this.login();
     }
   }
 
   /**
-   * Método encargado de invocar el método de login de UserService.
-   * Se determina que tipo de ingreso es, y en caso de no haber inconvenientes
-   * carga la pantalla home.
+   * Initiates the login process by calling the UserService.
+   * Handles different login scenarios and navigates accordingly.
    */
   async login() {
     const loading = await this.loadingController.create({
       cssClass: 'custom-loading',
-      message: 'Iniciando sesion',
+      message: 'Iniciando sesion...',
     });
-    loading.present();
-    const response = await this.userService.login(
-      this.user_email,
-      this.user_password
-    );
-    loading.dismiss();
+    await loading.present();
 
-    if (response) {
+    try {
+      const response = await this.userService.login(this.user_email, this.user_password);
       switch (response) {
         case 'first_time_user':
-          this.router.navigate(['/new-password']);
-          this.cleanFields();
+          await this.router.navigate(['/new-password']);
+          this.clearFields();
           break;
 
         case 'already_registered_user':
-          console.log('Usuario que inicio sesion: ', this.userService.user);
-          this.router.navigate(['/home']);
-          this.cleanFields();
+          console.log('Logged in user:', this.userService.user);
+          await this.router.navigate(['/home']);
+          this.clearFields();
           break;
 
         case 'inactive_user':
-          const alert = await this.alertController.create({
+          const alertInactive = await this.alertController.create({
             cssClass: 'custom-alert',
-            header: 'No puedes iniciar sesión',
+            header: 'Usuário inactivo',
             message:
-              'Tú estatus actual es inactivo. No tienes acceso a la aplicación.',
-            buttons: [
-              {
-                cssClass: 'alert-button-confirm',
-                text: 'Ok',
-              },
-            ],
+              'El status de su usuário es inactivo. No tienes acceso a la aplicación.',
+            buttons: [{ cssClass: 'alert-button-confirm', text: 'Ok' }],
           });
-
-          await alert.present();
+          await alertInactive.present();
           break;
 
         default:
+          const alertDefault = await this.alertController.create({
+            cssClass: 'custom-alert',
+            header: 'No se pudo iniciar sesión',
+            message: 'Por favor, revisa tus credenciales e intentalo nuevamente.',
+            buttons: [{ cssClass: 'alert-button-confirm', text: 'Ok' }],
+          });
+          await alertDefault.present();
           break;
       }
-    } else {
-      const alert = await this.alertController.create({
+    } catch (error) {
+      console.error('Login error:', error);
+      const alertError = await this.alertController.create({
         cssClass: 'custom-alert',
-        header: 'No se pudo iniciar sesión',
-        message: 'Por favor, revisa tus credenciales e intentalo nuevamente',
-        buttons: [
-          {
-            cssClass: 'alert-button-confirm',
-            text: 'Ok',
-          },
-        ],
+        header: 'Error',
+        message: 'Error inesperado. Por favor, inténtalo nuevamente más tarde.',
+        buttons: [{ cssClass: 'alert-button-confirm', text: 'Ok' }],
       });
-
-      await alert.present();
+      await alertError.present();
+    } finally {
+      await loading.dismiss();
     }
   }
 
   /**
-   * Método encargado de limpiar los campos de credenciales
-   * de inicio de sesión.
+   * Clears the email and password fields.
    */
-  cleanFields() {
-    this.user_email = "";
-    this.user_password = "";
+  clearFields() {
+    this.user_email = '';
+    this.user_password = '';
   }
 
   /**
-   * Método encargado de almacenar en la BD local
-   * las credenciales de inicio de sesión del usuario
-   * con la llave "login_credentials".
+   * Stores user credentials locally under the key "login_credentials".
    */
-  storageCredentials() {
-    this.storageService.set(
-      'login_credentials',
-      JSON.stringify({ email: this.user_email, password: this.user_password })
-    );
+  storeCredentials() {
+    const credentials = JSON.stringify({
+      email: this.user_email,
+      password: this.user_password,
+    });
+    this.storageService.set('login_credentials', credentials);
   }
 
   /**
-   * Método que muestra alerta en caso de intentar
-   * iniciar sesión y no tener conexion a internet.
+   * Displays an alert when attempting to log in without an internet connection.
    */
   async deactivateOnlineOptions() {
     const alert = await this.alertController.create({
       cssClass: 'custom-alert',
-      header: 'No tienes conexión',
+      header: 'Sin conexión a Internet',
       message:
-        'Puedes utilizar la aplicación en modo desconectado, tus resultados se cargarán automaticamente cuando vuelvas a iniciar sesión con internet.',
-      buttons: [
-        {
-          cssClass: 'alert-button-confirm',
-          text: 'Ok',
-        },
-      ],
+        'No se detectó conexión a Internet. Puedes seguir usando la app; los datos se subirán automáticamente a la nube más tarde.',
+      buttons: [{ cssClass: 'alert-button-confirm', text: 'Ok' }],
     });
     await alert.present();
   }

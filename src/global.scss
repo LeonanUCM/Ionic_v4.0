@@ -43,7 +43,6 @@ ion-app, ion-content, app-root {
   overflow: hidden; /* Prevent scroll */
 }
 
-
 /* By default, buttons align horizontally */
 ion-header, ion-toolbar {
   height: 10vmin;
@@ -55,6 +54,11 @@ ion-header, ion-toolbar {
 ion-buttons {
   display: flex;
   flex-direction: row; /* Buttons are in a row in portrait */
+}
+
+ion-button {
+  text-transform: none;
+  font-size: var(--ion-font-size-medium);
 }
 
 /* Default styles for portrait (vertical) */
@@ -80,6 +84,30 @@ ion-title {
   line-height: 1; /* Asegura que el texto esté centrado */
   text-align: center;
   width: 100%;
+}
+
+ion-checkbox {
+  --size: 6vmin;
+  --checkbox-background: var(--ion-color-light);
+  font-size: var(--ion-font-size-normal);
+  color: var(--ion-color-tertiary);
+}
+
+/* Apply link color */
+a {
+  color: var(--ion-link-color);
+  text-decoration: underline;
+}
+
+/* Hover effect for links */
+a:hover {
+  color: var(--ion-color-warning);
+  text-decoration: underline;
+}
+
+ion-row {
+  font-size: var(--ion-font-size-normal);
+  color: var(--ion-color-tertiary);
 }
 
 .dark-background {

@@ -1,7 +1,8 @@
 import { Component, QueryList, ViewChild, ViewChildren, ElementRef } from '@angular/core';
 import { Router, NavigationEnd } from '@angular/router';
-import { IonModal } from '@ionic/angular';
-
+import { IonModal, NavController } from '@ionic/angular';
+import { UserService } from 'src/app/services/user.service';
+import { StorageService } from 'src/app/services/storage.service';
 @Component({
   selector: 'app-home',
   templateUrl: './home.page.html',
@@ -23,7 +24,11 @@ export class HomePage {
     { type: 'peach-red', img: 'assets/images/peach-red.jpg', name: 'Melocotón\nRojo' },
   ];
 
-  constructor(private router: Router) {
+  constructor(private router: Router,
+              private navCtrl: NavController,
+              private userService: UserService,
+              private storageService: StorageService) 
+  {
     this.router.events.subscribe((event) => {
       if (event instanceof NavigationEnd) {
         this.isModalOpen = false;
@@ -69,5 +74,12 @@ export class HomePage {
     console.log('Selected Option:', option);
     this.openFruitPage(this.fruit, option);
     this.dismissModal();
+  }
+
+  public logOff() {
+    console.log('Logging off...');
+    this.userService.logOff();
+    //this.storageService.remove('login_credentials');
+    this.navCtrl.navigateRoot('/login');
   }
 }

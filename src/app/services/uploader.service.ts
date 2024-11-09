@@ -14,7 +14,7 @@ import { LoadingController } from '@ionic/angular';
 export class UploaderService {
   constructor(
     private storageService: StorageService,
-    private userService: UserService,
+    private userService: UserService, 
     private loadingController: LoadingController
   ) {}
 
@@ -39,12 +39,12 @@ export class UploaderService {
       const { connected } = await Network.getStatus();
       const pendingAnalyses = await this.pendingAnalyses();
 
-      console.log('Are there pending analyses?: ', pendingAnalyses);
-      console.log('Is user logged in?: ', this.userService.userLoggedIn);
-      console.log('Is internet available?: ', connected);
+      console.log('pendingAnalyses=', pendingAnalyses);
+      console.log('userLoggedIn=', this.userService.userLoggedIn);
+      console.log('connected=', connected);
 
       if (connected && this.userService.userLoggedIn && pendingAnalyses) {
-        console.log('Starting upload of previous analyses...');
+        console.log('Subiendo análisis anteriores a la nube...');
 
         let loading;
         if (showLoader) {
@@ -63,7 +63,7 @@ export class UploaderService {
         });
       }
     } catch (error) {
-      console.error('Error uploading previous analyses: ', error);
+      console.error('Error al subir análisis anteriores a la nube: ', error);
     }
   }
 

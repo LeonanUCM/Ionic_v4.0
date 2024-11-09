@@ -1,7 +1,13 @@
 <ion-header>
-  <ion-toolbar class="dark-background">
-    <div class="centered"><div class="logo"></div></div>
-  </ion-toolbar>
+  <ion-button (click)="logOff()">
+    <ion-icon name="log-out-outline" slot="icon-only"></ion-icon>
+  </ion-button>
+
+  <ion-toolbar class="toolbar-layout">
+    <div class="toolbar-layout">
+      <div class="logo-container"></div>
+    </div>
+</ion-toolbar>
 </ion-header>
 <ion-content class="home-content">
   <ion-title class="dark-background">Elija la Fruta:</ion-title>
@@ -17,9 +23,9 @@
       </ion-col>
     </ion-row>
   </ion-grid>
-  <ion-label class="version-label" text-center>
-    Versión: 2.0.24.11.5
-  </ion-label>
+  <!-- <ion-label class="version-label" text-center>
+    Versión: {{ appVersion }}
+  </ion-label> -->
 </ion-content>
 
 

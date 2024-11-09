@@ -47,7 +47,9 @@
 
   /* Button color */
   --ion-button-background: var(--ion-color-dark); /* Use the dark background color for buttons */
-  --ion-button-text-color: var(--ion-color-light) /* Use light color for button text */
+  --ion-button-text-color: var(--ion-color-light); /* Use light color for button text */
+
+  --ion-link-color: var(--ion-color-tertiary);
 }
 
 /* Dark mode */

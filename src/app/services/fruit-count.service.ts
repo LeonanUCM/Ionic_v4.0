@@ -1,4 +1,6 @@
-import { CloudUploadService } from '../services/cloud-upload.service';
+import { StorageService } from '../services/storage.service';
+import { UploaderService } from '../services/uploader.service';
+import { ResultData } from 'src/app/models/resultData';
 import { Injectable } from '@angular/core';
 import { LoadingController, ToastController } from '@ionic/angular';
 import { Capacitor } from '@capacitor/core';
@@ -7,6 +9,7 @@ import * as tf from '@tensorflow/tfjs';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { addIcons } from 'ionicons';
 import { add, remove } from 'ionicons/icons';
+import { v4 as uuidv4 } from 'uuid';
 
 
 @Injectable({
@@ -42,14 +45,15 @@ export class FruitCountService {
   private lastDevicePixelRatio = window.devicePixelRatio;
   private showNumbers: boolean = true;
   private showCircles: boolean = true; 
-  private cloudUploadService: CloudUploadService = new CloudUploadService();
   private fruitType: string = '';
   private fruitSubType: string = '';
 
 
   constructor(
     private loadingController: LoadingController, 
-    private toastController: ToastController
+    private toastController: ToastController,
+    private storageService: StorageService,
+    private uploaderService: UploaderService
   ) 
   { 
     addIcons({ add });
@@ -65,7 +69,7 @@ export class FruitCountService {
    * @param fruitLocalName - Localized name of the fruit.
    * @param ApiUrl - API URL for cloud upload service.
    */
-  public initialize(fruitType: string, fruitSubType: string, fruitLocalName: string, ApiUrl: string ="") {
+  public initialize(fruitType: string, fruitSubType: string, fruitLocalName: string) {
     // Configure the model and fruit names
     console.log(`configureFruitType: type: ${fruitType}, sub-type: ${fruitSubType}, local name: ${fruitLocalName}`);
     this.fruitType = fruitType;
@@ -74,7 +78,6 @@ export class FruitCountService {
     this.fruitSampleFilename = `./assets/images/${fruitType}-${fruitSubType}.jpg`;
     this.modelFilename = `./assets/models/${fruitType}-model_js/model.json`;
     this.iouThreshold = 0.5;
-    this.cloudUploadService.setUrl(ApiUrl);
     console.log(`Model: ${this.modelFilename}, Sample: ${this.fruitSampleFilename}`);
 
     this.initializeEventListeners();
@@ -1303,13 +1306,13 @@ private blobToBase64(blob: Blob): Promise<string> {
 
   public async shareCanvasImage(platform: string = "auto"): Promise<void> {
     console.log('shareCanvasImage: platform=', platform);
-    const dataUrl = this.cloudUploadService.getDataUrl(this.canvas!);
-    const dataUrlOriginal = this.cloudUploadService.getDataUrl(this.originalImage!);
+    const dataUrl = this.getDataUrl(this.canvas!);
+    const dataUrlOriginal = this.getDataUrl(this.originalImage!);
     const newFilename = this.enrichFilename(this.imageFilename);
 
     if (platform === "cloud") {
         // Llamada asíncrona a cloudUploadService sin detener el flujo principal
-        this.cloudUploadService.uploadToCloud(dataUrl, dataUrlOriginal, this.fruitType, this.fruitSubType, this.totalSelectedObjects, newFilename)
+        this.storeResults(dataUrl, dataUrlOriginal, this.fruitType, this.fruitSubType, this.totalSelectedObjects, newFilename)
         .then(() => {
             this.presentToast(`Imágenes y datos enviados a la nube con éxito.`, 'middle');
         })
@@ -1354,6 +1357,134 @@ private blobToBase64(blob: Blob): Promise<string> {
             console.error('Error al compartir la imagen:', error);
         }
       }
+    }
+  }
+
+  public isUUIDv4(str: string): boolean {
+    const uuidv4Regex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i;
+  return uuidv4Regex.test(str);
+  }
+
+  private extractGtNumber(filename: string): number {
+    const match = filename.match(/_gt(\d+)/);
+    return match ? parseInt(match[1], 10) : 0;
+  }
+
+  public getDataUrl(element: HTMLCanvasElement | HTMLImageElement): string {
+    return this.resizeImage(element).toDataURL('image/jpeg', 0.9);
+  }
+
+  public resizeImage(element: HTMLImageElement | HTMLCanvasElement, maxDimension: number = 2048): HTMLCanvasElement {
+    const width = element instanceof HTMLCanvasElement ? element.width : element.naturalWidth;
+    const height = element instanceof HTMLCanvasElement ? element.height : element.naturalHeight;
+
+    // Verificar si la imagen ya está dentro del límite de tamaño
+    if (width <= maxDimension && height <= maxDimension) {
+        // Si ya es más pequeña, no se redimensiona
+        const originalCanvas = document.createElement('canvas');
+        originalCanvas.width = width;
+        originalCanvas.height = height;
+        const context = originalCanvas.getContext('2d');
+        if (context) {
+            context.drawImage(element, 0, 0);
+        }
+        return originalCanvas;
+    }
+    // Calcular nuevas dimensiones manteniendo el ratio
+    const aspectRatio = width / height;
+    let newWidth, newHeight;
+
+    if (width > height) {
+        newWidth = maxDimension;
+        newHeight = Math.round(maxDimension / aspectRatio);
+    } else {
+        newHeight = maxDimension;
+        newWidth = Math.round(maxDimension * aspectRatio);
+    }
+
+    // Crear un canvas redimensionado
+    const resizedCanvas = document.createElement('canvas');
+    resizedCanvas.width = newWidth;
+    resizedCanvas.height = newHeight;
+    const resizedContext = resizedCanvas.getContext('2d');
+    if (resizedContext) {
+        resizedContext.drawImage(element, 0, 0, newWidth, newHeight);
+    }
+
+    return resizedCanvas;
+  }
+
+  private mapFruitType(fruitName: string): string {
+    const fruitMapping: { [key: string]: string } = {
+      "apple-green": "MANZANA VERDE",
+      "citrus-orange": "CITRUS NARANJA",
+      "peach-red": "MELOCOTON ROJO/AMARILLO",
+      "peach-yellow": "MELOCOTON AMARILLO"
+    };
+    return fruitMapping[fruitName] || fruitName;
+  }
+
+  private mapFruitSubType(fruitSubType: string): string {
+    return fruitSubType === "tree" ? "ARBOL" : "SUELO";
+  }
+
+
+  public async storeResults(dataUrl: string, dataUrlOriginal: string, fruitType: string, fruitSubType: string, totalSelectedObjects: number, currentFilename: string = "") : Promise<void> {
+    try {
+      let imageId = uuidv4();
+      let corrected_quantities = 0;
+      if (currentFilename !== "" && this.isUUIDv4(currentFilename)) {
+        imageId = currentFilename;
+        corrected_quantities = this.extractGtNumber(currentFilename);
+        if (corrected_quantities > 0)
+          console.log('Corrected quantities:', corrected_quantities);
+      }
+      console.log('Image ID:', imageId);
+
+      const base64Data = dataUrl.split(',')[1];
+      const base64DataOriginal = dataUrlOriginal.split(',')[1];
+
+      const weight = 0.1; // Peso promedio para el cálculo PRE
+      const fruit = this.mapFruitType(fruitType);
+      const type = this.mapFruitSubType(fruitSubType);
+
+      const Url_base = "https://prod-agroseguro-fruit-counting-bucket.s3.amazonaws.com/images"
+      const Url_result = `${Url_base}/results/${imageId}.jpg`;
+      const Url_original = `${Url_base}/originals/${imageId}.jpg`;
+
+      console.log('Going to mount API request...');
+      let resultModel = new ResultData();
+      resultModel.result_UUID = imageId;
+      resultModel.result_image = base64Data;
+      resultModel.original_image = base64DataOriginal;
+
+      resultModel.fruit = fruit;
+      resultModel.location = "Ubicación desconocida";
+      resultModel.image_date = "2024-11-05";
+      resultModel.weight = weight;
+      resultModel.quantities = totalSelectedObjects;
+      resultModel.pre_value = totalSelectedObjects * weight;
+      resultModel.photo_type = type; // ARBOL/SUELO
+      resultModel.small_fruits = 0;
+      resultModel.medium_fruits = 0;
+      resultModel.big_fruits = 0;
+
+      resultModel.corrected_fruit_total_quantity = 0;
+      resultModel.corrected_fruit_big_quantity = 0;
+      resultModel.corrected_fruit_medium_quantity = 0;
+      resultModel.corrected_fruit_small_quantity = 0;
+      resultModel.url_original_image = Url_original;
+      resultModel.url_result_image = Url_result;
+      resultModel.mode = "offline"
+  
+      // Guardar en BD el analisis
+      console.log('Invoking storage...');
+      this.storageService.set(imageId, resultModel);
+      console.log('Trying to send analisys...');
+      this.uploaderService.uploadPreviousAnalyses('Subiendo previos análisis');
+    } catch (error) {
+      console.error('Error uploading images and data to the cloud:', error);
+      throw new Error('Error uploading to the cloud.');
     }
   }
 }

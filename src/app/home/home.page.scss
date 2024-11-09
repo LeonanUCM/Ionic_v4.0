@@ -92,8 +92,19 @@ ion-img {
   text-align: center;
 }
 
+.toolbar-layout {
+  display: flex;
+  justify-content: center; /* Center content horizontally */
+  align-items: center; /* Center content vertically */
+  position: relative;
+  --background: var(--ion-color-dark) !important;
+  color: var(--ion-color-light) !important;
+  min-width: 100vw;
+  flex-direction: row;
+}
 
-.logo {
+
+.logo-container {
   background-image: url('/assets/images/agroseguro-logo-dark.png');
   background-color: transparent;
   width: 40vmin;
@@ -101,6 +112,24 @@ ion-img {
   background-size: contain; /* Scale the image to fit within the element */
   background-repeat: no-repeat; /* Prevent image repetition */
   background-position: center; /* Center the image within the element */  
+}
+
+ion-button {
+  position: fixed; /* Fixes the position relative to the viewport */
+  top: 3vmin; /* Adjust the distance from the top */
+  right: 3vmin; 
+  z-index: 100; /* High z-index to ensure it’s above other elements */
+  font-size: 6vmin;
+  min-height: 8vmin;
+  max-height: 8vmin;
+  min-width: 8vmin;
+  max-width: 8vmin;
+}
+
+ion-icon {
+  z-index: 101; /* High z-index to ensure it’s above other elements */
+  font-size: 6vmin;
+  color: var(--ion-color-tertiary);
 }
 
 .centered {
@@ -156,11 +185,6 @@ ion-title {
 .label-row ion-col {
   display: flex;
   justify-content: center; /* Center content within the column */
-}
-
-.button-label {
-  text-align: center;
-  color: var(--ion-color-light);
 }
 
 /* Second Row: Menu Options */

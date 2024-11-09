@@ -1,4 +1,5 @@
 import { FruitCountService } from '../services/fruit-count.service';
+import { StorageService } from '../services/storage.service';
 import { UploaderService } from '../services/uploader.service';
 import { Component, OnInit, AfterViewInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
@@ -18,12 +19,16 @@ export class FruitCountPage implements OnInit, AfterViewInit {
     private navCtrl: NavController,
     private loadingController: LoadingController,
     private toastController: ToastController,
+    private storageService: StorageService,
+    private uploaderService: UploaderService,
     public fruitCountService: FruitCountService | null = null
   ) {
     // Initialize fruitCountService with loading and toast controllers
     this.fruitCountService = new FruitCountService(
       this.loadingController, 
-      this.toastController
+      this.toastController,
+      this.storageService,
+      this.uploaderService
     );
   }
 
@@ -50,8 +55,7 @@ export class FruitCountPage implements OnInit, AfterViewInit {
       this.fruitCountService.initialize(
         params['fruit_type'], 
         params['fruit_sub_type'], 
-        this.getFruitLocalName(params['fruit_type']),
-        'https://gwk02bf51i.execute-api.eu-west-1.amazonaws.com/prod/'
+        this.getFruitLocalName(params['fruit_type'])
       );
     });
   }

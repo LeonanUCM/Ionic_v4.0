@@ -20,7 +20,8 @@
             "tsConfig": "tsconfig.app.json",
             "inlineStyleLanguage": "scss",
             "allowedCommonJsDependencies": [
-              "long"
+              "long",
+              "localforage"
             ],
             "assets": [
               {

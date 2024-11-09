@@ -1,68 +1,121 @@
-ion-content {
-    --ion-background-color: #ffffff;
+// Makes the grid take full height to allow vertical centering
+.grid-responsive {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+// Style for the logo section at the top
+.logo-section {
+    background-image: url('/assets/images/logo-login.png');
+    justify-content: center;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: auto 100%;
+    min-height: 30vh;
+    max-height: 30vh;
+    min-width: 80vw;
+    max-width: 80vw;
+  }
+
+.form-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  min-height: 50vh;
+  max-height: 50vh;
+  min-width: 70vw;
+  max-width: 70vw;
+  margin-top: 5vh;
 }
 
-#welcome-label {
-    color: black;
-    font-size: 1.6em;
-    font-weight: 500;
-    font-family: 'Montserrat';
+
+.reset-password {
+  display: flex;
+  min-height: 10vh;
+  max-height: 10vh;
+  min-width: 70vw;
+  max-width: 70vw;
+}
+
+@media (orientation: landscape) {
+  .grid-responsive {
+    flex-direction: row;
+  }
+  .logo-section {
+    min-height: 90vh;
+    max-height: 90vh;
+    min-width: 40vw;
+    max-width: 40vw;
+  }
+  .form-container {
+    min-height: 80vh;
+    max-height: 80vh;
+    min-width: 40vw;
+    max-width: 40vw;
+    margin-top: 0vh;
+  }
+  .reset-password {
+    min-height: 10vh;
+    max-height: 10vh;
+    min-width: 40vw;
+    max-width: 40vw;
+  }
+}
+  
+ion-input {
+  color: var(--ion-color-dark);
+  min-height: 5vmin;
+  border: 0px;
+}
+
+// Minimal spacing for form fields and button
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1vh;
+}
+
+// Checkbox styling
+.checkbox {
+  margin-top: 1vh;
+  align-self: center;
+}
+
+// Forgot password section at the bottom
+.forgot-password-section {
+  margin-bottom: 5vmin;
+}
+
+.button-login {
+  max-width: 50%;
+  align-self: center;
+}
+
+
+ion-grid {
+  background-color: var( --ion-color-medium);
+  border-radius: 15px;
 }
 
 ion-item {
-    --background: #fafafa;
-    --border-color: #ffffff;
-    border-radius: 5px;
-    border-style: solid;
-    border-width: 1px;
-
-    color: #6C757D;
-    font-weight: 500;
-    font-family: 'Montserrat';
+  --background: var(--ion-color-light);
+  --border-color: var(--ion-color-light);
+  border-radius: 5px;
+  color: var(--ion-color-light);
 }
 
 ion-icon[name="eye-outline"],
 ion-icon[name="eye-off-outline"] {
-    font-size: 24px;
-    color: #777;
-    cursor: pointer;
+  font-size: var(--ion-font-size-large);
+  color: var(--ion-color-dark);
+  cursor: pointer;
 }
 
-ion-input {
-    --highlight-color-focused: #007C2A;
-    --highlight-color-invalid: #007C2A;
-    --highlight-color-valid: #007C2A;
-}
-
-ion-radio {
-    color: #6C757D;
-    font-weight: 600;
-    font-family: 'Montserrat';
-
-    --color: #666666;
-    --color-checked: #666666;
-}
-
-#forgot-label {
-    color: #212529;
-    font-family: 'Montserrat';
-}
-
-#forgot-link {
-    color: #212529;
-    font-weight: bold;
-    font-family: 'Montserrat';
-    text-decoration: none;
-}
-
-#login-button {
-    --background: #007C2A;
-    font-weight: 600;
-    font-family: 'Montserrat';
-}
-
-#offline-button {
-    --background: #666666;
-    font-weight: 600;
-    font-family: 'Montserrat';
+custom-alert {
+  --background: var(--ion-color-warning);
+  --color: var(--ion-color-dark);
 }
