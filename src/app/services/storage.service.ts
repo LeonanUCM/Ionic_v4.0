@@ -84,4 +84,22 @@ export class StorageService {
     await this.storageReady;
     return await this._storage?.length() || 0;
   }
+
+  /**
+   * Retrieves the number of pending items stored in the database,
+   * excluding items with the key 'login_credentials'.
+   *
+   * @returns The number of pending items in the database.
+   */
+  public async numberPendingRequests(): Promise<number> {
+    await this.storageReady;
+
+    // Obtén todas las claves almacenadas
+    const keys = await this._storage?.keys() || [];
+
+    // Filtra las claves que no son 'login_credentials' y cuenta el resultado
+    const pendingKeys = keys.filter(key => key !== 'login_credentials');
+    return pendingKeys.length;
+  }
+
 }

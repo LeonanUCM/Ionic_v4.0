@@ -4,6 +4,7 @@ import { ResultData } from 'src/app/models/resultData';
 import { Injectable } from '@angular/core';
 import { LoadingController, ToastController } from '@ionic/angular';
 import { Capacitor } from '@capacitor/core';
+import { Geolocation } from '@capacitor/geolocation';
 import { Share } from '@capacitor/share';
 import * as tf from '@tensorflow/tfjs';
 import { Filesystem, Directory } from '@capacitor/filesystem';
@@ -35,11 +36,16 @@ export class FruitCountService {
   private _sensitivityValue: number = 0;
   private _sensitivityText: string = 'N';
   private _totalSelectedObjects: number = 0;
+  private lowProbabilitySelectedObjects: number = 0;
+  private mediumProbabilitySelectedObjects: number = 0;
+  private highProbabilitySelectedObjects: number = 0;
   private predictBoxes: tf.Tensor | undefined;
   private predictScores: tf.Tensor | undefined;
   private _fruitName: string = '';
   private imageFilename: string = '';
   private imageExample: boolean = true;
+  private imageLocation = "";
+  private imageDate = "";
   private totalObjects: number = 0;
   private lastDevicePixelRatio = window.devicePixelRatio;
   private showNumbers: boolean = true;
@@ -339,7 +345,19 @@ export class FruitCountService {
             this.originalImage = img;
           }
   
-          const inputTensor = this.convertImageToTensor(img);
+        this.imageDate = this.getCurrentDateTime();      
+        this.imageLocation = "Ubicación desconocida";
+        this.getCurrentLocation()
+        .then(returnedLocation => {
+          this.imageLocation = `${returnedLocation.latitude.toFixed(6)},${returnedLocation.longitude.toFixed(6)}`;
+          console.log('Ubicación actual:', this.imageLocation);
+          this.drawEllipses();
+        })
+        .catch(error => {
+          console.log('Cant get GPS Data. Ubicación actual:', this.imageLocation);
+        });      
+
+        const inputTensor = this.convertImageToTensor(img);
           console.log(`Input tensor shape: ${inputTensor.shape}`, 1);
   
           try {
@@ -356,7 +374,7 @@ export class FruitCountService {
             if (!result || !this.predictBoxes || !this.predictScores) {
               throw new Error('No results received from prediction.');
             }
-  
+
             await this.drawEllipses();
           } catch (error) {
             console.error('Error during prediction:', error);
@@ -618,6 +636,11 @@ export class FruitCountService {
       const {filteredBoxes, filteredScores} = await this.applyNonMaxSuppression();
       const ellipses = await this.tensorToEllipses(filteredBoxes, filteredScores);
       this.totalSelectedObjects = ellipses.length;
+      this.lowProbabilitySelectedObjects = ellipses.filter(ellipse => ellipse.score < 0.5).length;
+      this.mediumProbabilitySelectedObjects = ellipses.filter(ellipse => ellipse.score >= 0.5 && ellipse.score < 0.75).length;
+      this.highProbabilitySelectedObjects = ellipses.filter(ellipse => ellipse.score >= 0.75).length;
+
+
       console.log(`Selected ${this.totalSelectedObjects} objects.`, 2);
 
       if (showMessage) {
@@ -633,7 +656,8 @@ export class FruitCountService {
           this.presentToast(`Descartados ${total_before - this.totalSelectedObjects} entre los menos probables.`, 'bottom');      
         }
         else {
-          this.presentToast(`Ningún cambio en número de frutos.`, 'bottom');
+          if ( this._sensitivityValue != 0)
+            this.presentToast(`Ningún cambio en número de frutos.`, 'bottom');
         }
       }
 
@@ -734,6 +758,9 @@ export class FruitCountService {
       }
 
       this.drawBox(this.fruitName, 'bottom-center', 'small');
+      this.drawBox(`GPS: ${this.imageLocation}`, 'bottom-right', 'small');
+      this.drawBox(this.imageDate, 'bottom-left', 'small');
+
       console.log(`Total objects drawn: ${this.totalSelectedObjects}`, 1);
     }    
     return;
@@ -1238,7 +1265,7 @@ private blobToBase64(blob: Blob): Promise<string> {
    * @param position - The position of the toast on the screen. Can be 'top', 'middle', or 'bottom'.
    * @returns A promise that resolves when the toast is presented.
    */
-  async presentToast(
+  public async presentToast(
     message: string,
     position: 'top' | 'middle' | 'bottom'
   ): Promise<void> {
@@ -1309,14 +1336,14 @@ private blobToBase64(blob: Blob): Promise<string> {
         // Hace el download para disco si esta en web browser
         if ( Capacitor.getPlatform() === 'web' ) {
           this.downloadImage(dataUrl, newFilename);
-          this.presentToast(`Imagen "${newFilename}" guardada.`, 'top');
+          this.presentToast(`Imagen guardada.`, 'top');
         }
     } 
     else if (platform === "social")
     {
       if ( Capacitor.getPlatform() === 'web' ) {
           this.downloadImage(dataUrl, newFilename);
-          this.presentToast(`Imagen "${newFilename}" guardada.`, 'top');
+          this.presentToast(`Imagen guardada.`, 'top');
       } else {
         //mobile
         try {
@@ -1338,7 +1365,7 @@ private blobToBase64(blob: Blob): Promise<string> {
               dialogTitle: 'Compartir Imagen',
           });
 
-          this.presentToast(`Imagen "${newFilename}" compartida.`, 'top');
+          this.presentToast(`Imagen compartida.`, 'top');
         } catch (error) {
             console.error('Error al compartir la imagen:', error);
         }
@@ -1426,6 +1453,37 @@ private blobToBase64(blob: Blob): Promise<string> {
     return filename.substring(0, lastDotIndex);
   }
 
+  public getCurrentDateTime() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  }
+
+  /**
+   * Obtiene la ubicación GPS actual del usuario.
+   *
+   * @returns Una promesa que resuelve con un objeto que contiene latitud y longitud.
+   */
+  async getCurrentLocation(): Promise<{ latitude: number; longitude: number }> {
+    try {
+      console.log("Trying to get GPS location.")
+      const position = await Geolocation.getCurrentPosition();
+      const latitude = position.coords.latitude;
+      const longitude = position.coords.longitude;
+      await this.drawEllipses();      
+      return { latitude, longitude };
+    } catch (error) {
+      console.error('Error obteniendo la ubicación:', error);
+      throw new Error('No se pudo obtener la ubicación');
+    }
+  }
+
   public async storeResults(dataUrl: string, dataUrlOriginal: string, fruitType: string, fruitSubType: string, totalSelectedObjects: number, currentFilename: string = "") : Promise<void> {
     try {
       let imageId = uuidv4();
@@ -1456,15 +1514,15 @@ private blobToBase64(blob: Blob): Promise<string> {
       resultModel.original_image = base64DataOriginal;
 
       resultModel.fruit = fruit;
-      resultModel.location = "Ubicación desconocida";
-      resultModel.image_date = "2024-11-05";
+      resultModel.location = this.imageLocation;
+      resultModel.image_date = this.imageDate;
       resultModel.weight = weight;
       resultModel.quantities = totalSelectedObjects;
-      resultModel.pre_value = totalSelectedObjects * weight;
+      resultModel.pre_value = Math.round(totalSelectedObjects * weight);
       resultModel.photo_type = type; // ARBOL/SUELO
-      resultModel.small_fruits = 0;
-      resultModel.medium_fruits = 0;
-      resultModel.big_fruits = 0;
+      resultModel.small_fruits = this.lowProbabilitySelectedObjects;
+      resultModel.medium_fruits = this.mediumProbabilitySelectedObjects;
+      resultModel.big_fruits = this.highProbabilitySelectedObjects;
 
       resultModel.corrected_fruit_total_quantity = 0;
       resultModel.corrected_fruit_big_quantity = 0;

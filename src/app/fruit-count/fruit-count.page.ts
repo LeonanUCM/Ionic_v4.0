@@ -14,13 +14,15 @@ import { LoadingController, ToastController, NavController } from '@ionic/angula
 })
 
 export class FruitCountPage implements OnInit, AfterViewInit {
+  public showAnimationPendingRequests: boolean = false;
+  
   constructor(
     private route: ActivatedRoute,
     private navCtrl: NavController,
     private loadingController: LoadingController,
     private toastController: ToastController,
     private storageService: StorageService,
-    private uploaderService: UploaderService,
+    public uploaderService: UploaderService,
     public fruitCountService: FruitCountService | null = null
   ) {
     // Initialize fruitCountService with loading and toast controllers
@@ -32,6 +34,8 @@ export class FruitCountPage implements OnInit, AfterViewInit {
     );
   }
 
+
+
   //////////////////////////////////////////////////////////////////////////////////////////////
 
   /**
@@ -39,6 +43,8 @@ export class FruitCountPage implements OnInit, AfterViewInit {
    */
   ngAfterViewInit() {
     console.log('ngAfterViewInit called');
+    console.log('Trying to send pending analisys...');
+    this.uploaderService.uploadPreviousAnalyses('Uploading new analisys', false);
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////
@@ -47,7 +53,7 @@ export class FruitCountPage implements OnInit, AfterViewInit {
    * Lifecycle hook called once the component is created and ready.
    * Sets up route query parameter subscriptions and initializes the fruit count service.
    */
-  async ngOnInit() {
+  ngOnInit() {
     console.log('ngOnInit called.');
 
     // Subscribe to route query parameters for service initialization
@@ -58,7 +64,21 @@ export class FruitCountPage implements OnInit, AfterViewInit {
         this.getFruitLocalName(params['fruit_type'])
       );
     });
+
+    // Suscribirse a los cambios de badgeValue$ para actualizar el valor y activar la animación
+    this.uploaderService.badgePendingRequests$.subscribe((value) => {
+      this.triggerAnimationPendingRequests(); // Activar animación
+    });    
   }
+
+  // Método para activar la animación
+  triggerAnimationPendingRequests() {
+    console.log('triggerAnimationPendingRequests called');
+    this.showAnimationPendingRequests = false;
+    setTimeout(() => {
+      this.showAnimationPendingRequests = true;
+    }, 0);
+  }  
 
   //////////////////////////////////////////////////////////////////////////////////////////////
 

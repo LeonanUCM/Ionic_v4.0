@@ -17,7 +17,7 @@
     <ion-fab-button (click)="fruitCountService.shareCanvasImage('social')"><ion-icon name="share-social-outline"></ion-icon></ion-fab-button>
     <ion-fab-button id="nextButton" [disabled]="fruitCountService.isNextDisabled" [ngClass]="{ 'button_disable': fruitCountService.isNextDisabled }">
       <ion-icon name="cloud-upload"></ion-icon>
-      <ion-badge *ngIf="fruitCountService.isBadgeOpenFilesVisible" class="badge-position">{{ fruitCountService.fileIndex }}</ion-badge>
+      <ion-badge *ngIf="(uploaderService.badgePendingRequests$ | async) > 0" class="badge-position">{{ this.uploaderService.badgePendingRequests$ | async}}</ion-badge>
     </ion-fab-button>
     <div class="empty-space"></div>
   </ion-fab>

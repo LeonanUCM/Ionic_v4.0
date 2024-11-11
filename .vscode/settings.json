@@ -3,5 +3,8 @@
     "cSpell.enableFiletypes": [
         "!scss",
         "!typescript"
+    ],
+    "cSpell.words": [
+        "geolocation"
     ]
 }

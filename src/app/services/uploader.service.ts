@@ -3,6 +3,7 @@ import { StorageService } from './storage.service';
 import { UserService } from './user.service';
 import { Network } from '@capacitor/network';
 import { LoadingController } from '@ionic/angular';
+import { BehaviorSubject, Observable } from 'rxjs';
 
 /**
  * Injectable class to handle the automatic upload of
@@ -12,11 +13,21 @@ import { LoadingController } from '@ionic/angular';
   providedIn: 'root',
 })
 export class UploaderService {
+  private badgePendingRequestsSubject: BehaviorSubject<number> = new BehaviorSubject<number>(0);
+  public badgePendingRequests$: Observable<number> = this.badgePendingRequestsSubject.asObservable();
+
+
   constructor(
     private storageService: StorageService,
     private userService: UserService, 
     private loadingController: LoadingController
   ) {}
+
+
+  // Método para actualizar el valor del badge
+  public updateBadgePendingRequests(newValue: number): void {
+    this.badgePendingRequestsSubject.next(newValue);
+  }
 
   /**
    * Method responsible for checking if the user is logged in,
@@ -31,6 +42,7 @@ export class UploaderService {
    * @param {string} loaderMessage - The message to be displayed in the loader (if applicable).
    * @param {boolean} showLoader - Indicates whether to show a loader during the upload.
    */
+
   async uploadPreviousAnalyses(loaderMessage: string, showLoader: boolean = false) {
     try {
       // Refresh token
@@ -42,6 +54,10 @@ export class UploaderService {
       console.log('pendingAnalyses=', pendingAnalyses);
       console.log('userLoggedIn=', this.userService.userLoggedIn);
       console.log('connected=', connected);
+      
+      const numberRequests = await this.storageService.numberPendingRequests();
+      console.log('--- pendingUploads=', numberRequests);
+      this.updateBadgePendingRequests(numberRequests);
 
       if (connected && this.userService.userLoggedIn && pendingAnalyses) {
         console.log('Trying to upload previous analisys to cloud...');
@@ -87,11 +103,14 @@ export class UploaderService {
       }
 
       let errorsOccurred = false;
-      console.log('pendingUploads=', pendingUploads.length);
+      let numberRequests = pendingUploads.length;
 
       // Iterate over the list of analyses to upload
       for (const element of pendingUploads) {
-        // Upload analysis data
+        console.log('--- pendingUploads=', numberRequests);
+        this.updateBadgePendingRequests(numberRequests);
+
+          // Upload analysis data
         const dataSaved = await this.userService.saveResultData(element);
         if (!dataSaved) {
           // Stop immediately if there was an error
@@ -112,6 +131,8 @@ export class UploaderService {
           errorsOccurred = true;
           break;
         }
+
+        numberRequests--;
       }
 
       // If there were no errors, delete the uploaded elements from the DB
@@ -130,6 +151,11 @@ export class UploaderService {
       }
     } catch (error) {
       console.error('Error during upload: ', error);
+    }
+    finally {
+      const numberRequests = await this.storageService.numberPendingRequests();
+      console.log('pendingUploads=', numberRequests);
+      this.updateBadgePendingRequests(numberRequests);
     }
   }
 
@@ -151,4 +177,5 @@ export class UploaderService {
       return false;
     }
   }
+
 }
