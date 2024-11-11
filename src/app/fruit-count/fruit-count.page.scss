@@ -57,6 +57,8 @@
     background-color: red;
     color: white;
     font-size: 3vmin; /* Adjusts the size of the text */
+    display: inline-block;
+    animation: grow-shrink 0.4s ease-in-out;
   }
 
 /* Estilos para orientación horizontal (landscape) */

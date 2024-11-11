@@ -44,7 +44,7 @@ export class UploaderService {
       console.log('connected=', connected);
 
       if (connected && this.userService.userLoggedIn && pendingAnalyses) {
-        console.log('Trying to upload preivous analisys to cloud...');
+        console.log('Trying to upload previous analisys to cloud...');
 
         let loading;
         if ( showLoader) {
@@ -87,6 +87,7 @@ export class UploaderService {
       }
 
       let errorsOccurred = false;
+      console.log('pendingUploads=', pendingUploads.length);
 
       // Iterate over the list of analyses to upload
       for (const element of pendingUploads) {
@@ -119,7 +120,7 @@ export class UploaderService {
           await this.storageService.remove(key);
         }
       } else {
-        console.log(
+        console.warn(
           'An error occurred while uploading the results, and the operation was aborted'
         );
         // Delete the elements to upload to avoid inconsistencies

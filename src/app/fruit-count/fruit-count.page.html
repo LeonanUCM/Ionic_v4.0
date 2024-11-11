@@ -15,7 +15,10 @@
     <ion-fab-button (click)="triggerFileInput('cameraUpload')"><ion-icon name="camera-outline"></ion-icon></ion-fab-button>
     <div class="empty-space"></div>
     <ion-fab-button (click)="fruitCountService.shareCanvasImage('social')"><ion-icon name="share-social-outline"></ion-icon></ion-fab-button>
-    <ion-fab-button id="nextButton" [disabled]="fruitCountService.isNextDisabled" [ngClass]="{ 'button_disable': fruitCountService.isNextDisabled }"><ion-icon name="cloud-upload"></ion-icon></ion-fab-button>
+    <ion-fab-button id="nextButton" [disabled]="fruitCountService.isNextDisabled" [ngClass]="{ 'button_disable': fruitCountService.isNextDisabled }">
+      <ion-icon name="cloud-upload"></ion-icon>
+      <ion-badge *ngIf="fruitCountService.isBadgeOpenFilesVisible" class="badge-position">{{ fruitCountService.fileIndex }}</ion-badge>
+    </ion-fab-button>
     <div class="empty-space"></div>
   </ion-fab>
   <ion-fab class="fab-2">

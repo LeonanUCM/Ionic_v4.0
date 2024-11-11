@@ -2,6 +2,8 @@ import { User } from '../models/user';
 import { environment } from 'src/environments/environment';
 import { CapacitorHttp, HttpResponse } from '@capacitor/core';
 import { Injectable } from '@angular/core';
+import { Router } from '@angular/router';
+import { Network } from '@capacitor/network';
 
 /**
  * Injectable class that serves as the main controller
@@ -17,7 +19,7 @@ export class UserService {
   public user: User = new User();
   public userLoggedIn: boolean = false;
 
-  constructor() {}
+  constructor(private router: Router) {}
 
   /**
    * Attempts to log in a user.
@@ -59,6 +61,7 @@ export class UserService {
           expireIn: userData.data.session_data.expireIn,
         };
         console.log('User ID:', this.user.session_data.userId);
+        this.logExpirationTimeToken(parseInt(this.user.session_data.expireIn, 10));
         return 'already_registered_user';
       } else if (
         userData.code === 500 &&
@@ -323,7 +326,7 @@ export class UserService {
   private delay(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
-  
+
   /**
    * Refreshes the token of the currently logged-in user.
    *
@@ -338,38 +341,50 @@ export class UserService {
       },
       data: { refresh_token: this.user.session_data.refreshToken },
     };
-  
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        const response: HttpResponse = await CapacitorHttp.post(options);
-        if (response.status >= 200 && response.status <= 400) {
-          const resultData = response.data.data;
-          this.user.session_data = {
-            token: resultData.token,
-            refreshToken: resultData.refresh_token,
-            userId: resultData.user_id,
-            status: resultData.status,
-            expireIn: resultData.expire_in,
-          };
-          console.log('Token refreshed successfully');
-          return true;
-        } else {
-          console.warn('Token could not be refreshed');
-          return false;
-        }
-      } catch (error) {
-        console.error(`Error in refreshToken method (Attempt ${attempt}):`, error);
-        if (attempt < 2) {
-          console.log('Retrying refreshToken in 2 seconds...');
-          await this.delay(2000); // Wait 2 seconds before retrying
-        } else {
-          console.error('Failed to refresh token after 2 attempts');
-          return false;
-        }
+
+    try {
+      const response: HttpResponse = await CapacitorHttp.post(options);
+
+      if (response.status >= 200 && response.status < 300) {
+        const resultData = response.data.data;
+        this.user.session_data = {
+          token: resultData.token,
+          refreshToken: resultData.refresh_token,
+          userId: resultData.user_id,
+          status: resultData.status,
+          expireIn: resultData.expire_in,
+        };
+        console.log('Token refreshed successfully');
+        this.logExpirationTimeToken(parseInt(this.user.session_data.expireIn, 10));
+        return true;
+      } else {
+        console.warn(`Token could not be refreshed. Status: ${response.status}`);
+        return false;
       }
+    } catch (error) {
+      const status = await Network.getStatus();
+      if ( status.connected ) {
+          console.error('Error in refreshToken method, redirecting to login page:', error);
+          // Optionally, you can redirect to login if token refresh fails due to authentication issues
+          this.router.navigate(['/login']);
+      }
+      else {
+        console.warn('Not connected to the Internet. Continuing offline.');
+      }
+      return false;
     }
-  
-    return false;
   }
-  
+
+  private logExpirationTimeToken(expireIn: number) {
+    // Calculate expiration time in minutes
+    const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds
+    const timeUntilExpire = expireIn - currentTime;
+
+    if (timeUntilExpire > 0) {
+      const expireInMinutes = timeUntilExpire / 60;
+      console.log(`Token will expire in ${expireInMinutes.toFixed(2)} minutes.`);
+    } else {
+      console.warn('Token has already expired.');
+    }
+  }    
 }

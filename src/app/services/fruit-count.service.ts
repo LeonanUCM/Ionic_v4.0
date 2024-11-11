@@ -11,7 +11,6 @@ import { addIcons } from 'ionicons';
 import { add, remove } from 'ionicons/icons';
 import { v4 as uuidv4 } from 'uuid';
 
-
 @Injectable({
   providedIn: 'root',
 })
@@ -19,8 +18,9 @@ export class FruitCountService {
   public isDecreaseDisabled: boolean = false;
   public isIncreaseDisabled: boolean = false;
   public isNextDisabled: boolean = false;
+  public fileIndex: number = 0;
   public isBadgeOpenFilesVisible: boolean = false;
-  private logLevel: number = 2; // Variable to control log level: 1 (most significant) to 3 (less significant)
+  private logLevel: number = 2;
   private model: tf.GraphModel | null = null;
   private canvas: HTMLCanvasElement | null = null;
   private ctx: CanvasRenderingContext2D | null = null;
@@ -38,7 +38,6 @@ export class FruitCountService {
   private predictBoxes: tf.Tensor | undefined;
   private predictScores: tf.Tensor | undefined;
   private _fruitName: string = '';
-  public fileIndex: number = 0;
   private imageFilename: string = '';
   private imageExample: boolean = true;
   private totalObjects: number = 0;
@@ -213,28 +212,13 @@ export class FruitCountService {
     }
   }  
 
-
-
-  //////////////////////////////////////////////////////////////////////////////////////////////
-
-  /**
-   * Logs messages based on the specified log level.
-   * @param message The message to log.
-   * @param level The severity level of the log (default is 3).
-   */
-  private log(message: string, level: number = 3) {
-    if (level <= this.logLevel) {
-      console.log(`[Level ${level}]: ${message}`);
-    }
-  }
-
   //////////////////////////////////////////////////////////////////////////////////////////////
 
   /**
    * Initializes event listeners for UI elements and window resize.
    */
   private initializeEventListeners() {
-    console.log('Initializing event listeners.', 3);
+    console.log('Initializing event listeners.');
 
     this.canvas = document.getElementById('resultCanvas') as HTMLCanvasElement;
     this.ctx = this.canvas.getContext('2d');
@@ -270,13 +254,13 @@ export class FruitCountService {
     console.log(`TensorFlow.js version: ${tf.version.tfjs}`);
 
     if (this.model !== null && !reload) {
-      this.log('Model already loaded. Skipping re-load.', 1);
+      console.log('Model already loaded. Skipping re-load.');
       return;
     }
 
     try {
       this.model = await tf.loadGraphModel(this.modelFilename);
-      this.log('Model loaded successfully.', 1);
+      console.log('Model loaded successfully.');
     } catch (error) {
       console.error('Error loading the model:', error);
       alert('Error loading the model. Check the console for more details.');
@@ -291,16 +275,13 @@ export class FruitCountService {
    * @param input - Event or filename for the image to be uploaded.
    */
   public async handleImageUpload(input: any) {
-    this.log('Image upload triggered.', 2);
+    console.log('Image upload triggered.');
 
-    this.log('Trying to upload pending analisys in background.', 2);
-    this.uploaderService.uploadPreviousAnalyses('Trying to upload pending analisys in background', false);
-    
     let files: FileList | File[] = [];
   
     // Check if the input is an event with files or a single file URL
     if (typeof input === 'string') {
-      this.log(`Received filename: ${input}`, 2);
+      console.log(`Received filename: ${input}`, 2);
       this.imageExample = ( this.fruitSampleFilename === input );
 
       try {
@@ -317,7 +298,7 @@ export class FruitCountService {
         return;
       }
     } else if (input && input.target && input.target.files && input.target.files.length > 0) {
-      this.log('Received event with multiple files.', 2);
+      console.log('Received event with multiple files.');
       this.imageExample = false;
       this.isBadgeOpenFilesVisible = true;
       files = input.target.files; // Store all selected files
@@ -332,7 +313,7 @@ export class FruitCountService {
       this.fileIndex = numImagesOpened - index;
 
       if (index >= numImagesOpened) {
-        this.log('All files processed.', 2);
+        console.log('All files processed.');
         this.isBadgeOpenFilesVisible = false;
         this.isNextDisabled = true;
         return; // No more files to process
@@ -340,7 +321,7 @@ export class FruitCountService {
 
       const file = files[index];
       this.imageFilename = file.name;
-      this.log(`Processing file: ${this.imageFilename}`, 2);
+      console.log(`Processing file: ${this.imageFilename}`, 2);
   
       try {
         this.resetSensitivity();
@@ -359,7 +340,7 @@ export class FruitCountService {
           }
   
           const inputTensor = this.convertImageToTensor(img);
-          this.log(`Input tensor shape: ${inputTensor.shape}`, 1);
+          console.log(`Input tensor shape: ${inputTensor.shape}`, 1);
   
           try {
             let message = '';
@@ -410,7 +391,7 @@ export class FruitCountService {
   */
   public handleSliderChange(event: any) {
     this.calculateScoreThreshold(parseInt(event.target.value));
-    this.log(`Confidence threshold updated: ${this.scoreThreshold}`, 1);
+    console.log(`Confidence threshold updated: ${this.scoreThreshold}`, 1);
 
     if (this.ctx) {
       this.drawEllipses();
@@ -441,7 +422,7 @@ export class FruitCountService {
     // Add an extra batch dimension
     tensor = tensor.expandDims(0);
 
-    this.log(`Image shape: ${tensor.shape}`, 2);
+    console.log(`Image shape: ${tensor.shape}`, 2);
     return tensor;
   }
 
@@ -458,7 +439,7 @@ export class FruitCountService {
       return undefined;
     }
 
-    this.log(`Input tensor shape: ${inputTensor.shape}`, 2);
+    console.log(`Input tensor shape: ${inputTensor.shape}`, 2);
     let outputs: any;
     try {
       outputs = this.model.execute(inputTensor);
@@ -494,12 +475,12 @@ export class FruitCountService {
     // Step 4: Separate first 4 properties and confidence
     let xywh = filteredOutputs.slice([0, 0], [-1, 4]) as tf.Tensor2D; // Shape: [N, 4]
     let confidences = filteredOutputs.slice([0, 4], [-1, 1]).reshape([-1]) as tf.Tensor1D; // Shape: [N]
-    this.log(`xywh shape: [${xywh.shape}]`, 2);
-    this.log(`Confidences shape: [${confidences.shape}]`, 2);
+    console.log(`xywh shape: [${xywh.shape}]`, 2);
+    console.log(`Confidences shape: [${confidences.shape}]`, 2);
     if (this.logLevel >= 3) {
-      this.log('First 10 xywh values:', 3);
+      console.log('First 10 xywh values:');
       xywh.slice([0, 0], [10, -1]).print();
-      this.log('First 10 confidence values:', 3);
+      console.log('First 10 confidence values:');
       confidences.slice(0, 10).print();
     }
 
@@ -548,7 +529,7 @@ export class FruitCountService {
     
 
     // Apply Non-Max Suppression
-    this.log(`Applying NMS iouThreshold=${this.iouThreshold} scoreThreshold=${this.scoreThreshold}`, 2);
+    console.log(`Applying NMS iouThreshold=${this.iouThreshold} scoreThreshold=${this.scoreThreshold}`, 2);
     const nmsIndices = await tf.image.nonMaxSuppressionAsync(
       convertedBoxes,
       convertedScores,
@@ -589,7 +570,7 @@ export class FruitCountService {
     // Sort predictions based on y_center (box[1])
     predictionsArray.sort((a, b) => a.box[1] - b.box[1]);
 
-    this.log('Ellipses processed from tensor data.', 2);
+    console.log('Ellipses processed from tensor data.');
 
     // Map each prediction to ellipse parameters
     return predictionsArray.map((pred: any, index: number) => {
@@ -601,7 +582,8 @@ export class FruitCountService {
       const radiusX = (box[2] / this.baseResolution) / 2;
       const radiusY = (box[3] / this.baseResolution) / 2;
 
-      this.log(`Ellipse ${index} center: (${centerX}, ${centerY}), radii: (${radiusX}, ${radiusY})`, 3);
+      if ( this.logLevel >= 3) 
+        console.log(`Ellipse ${index} center: (${centerX}, ${centerY}), radii: (${radiusX}, ${radiusY})`, 3);
 
       return {
         centerX,
@@ -632,11 +614,11 @@ export class FruitCountService {
   private async drawEllipses(showMessage: boolean = true): Promise<void> {
     if (this.predictBoxes && this.predictScores && this.ctx) {
       const total_before = this.totalSelectedObjects;
-      this.log(`Starting to analyze ${this.totalObjects} objects.`, 2);
+      console.log(`Starting to analyze ${this.totalObjects} objects.`, 2);
       const {filteredBoxes, filteredScores} = await this.applyNonMaxSuppression();
       const ellipses = await this.tensorToEllipses(filteredBoxes, filteredScores);
       this.totalSelectedObjects = ellipses.length;
-      this.log(`Selected ${this.totalSelectedObjects} objects.`, 2);
+      console.log(`Selected ${this.totalSelectedObjects} objects.`, 2);
 
       if (showMessage) {
         if (total_before == 0) {	
@@ -657,7 +639,7 @@ export class FruitCountService {
 
       // Restore the original image before drawing ellipses
       if (this.originalImage instanceof HTMLImageElement && this.ctx) {
-        this.log('Restoring original image before drawing ellipses.', 1);
+        console.log('Restoring original image before drawing ellipses.');
         
         // Clear the canvas before redrawing the image
         this.ctx.clearRect(0, 0, this.canvas!.width, this.canvas!.height);
@@ -665,12 +647,12 @@ export class FruitCountService {
         // Draw the original image
         this.drawRoundedImage(this.ctx, this.originalImage);
       } else {
-        this.log('Original image not available. Skipping image restoration.', 1);
+        console.log('Original image not available. Skipping image restoration.');
       }
   
       // Proceed to draw the ellipses on top of the restored image
       if (this.totalSelectedObjects === 0) {
-        this.log('No ellipses to draw.');
+        console.log('No ellipses to draw.');
         return;
       } else {
         // Use a for...of loop to handle async await
@@ -684,7 +666,8 @@ export class FruitCountService {
   
             scaledRadiusX = Math.abs(scaledRadiusX);
             scaledRadiusY = Math.abs(scaledRadiusY);
-            this.log(`Drawing ellipse ${index} with score ${score.toFixed(2)} center=(${scaledCenterX},${scaledCenterY}) radius=(${scaledRadiusX},${scaledRadiusY})`, 3);
+            if ( this.logLevel >= 3) 
+              console.log(`Drawing ellipse ${index} with score ${score.toFixed(2)} center=(${scaledCenterX},${scaledCenterY}) radius=(${scaledRadiusX},${scaledRadiusY})`, 3);
         
             this.ctx!.beginPath();
             if (this.showCircles) {
@@ -751,7 +734,7 @@ export class FruitCountService {
       }
 
       this.drawBox(this.fruitName, 'bottom-center', 'small');
-      this.log(`Total objects drawn: ${this.totalSelectedObjects}`, 1);
+      console.log(`Total objects drawn: ${this.totalSelectedObjects}`, 1);
     }    
     return;
   }
@@ -896,7 +879,7 @@ export class FruitCountService {
     this.ctx!.fillText(text, textX, textY);
 
 
-    this.log(`Drawn box with text: "${text}" at position ${position} (${boxX},${boxY})`, 3);
+    console.log(`Drawn box with text: "${text}" at position ${position} (${boxX},${boxY})`, 3);
   }
   
   
@@ -934,7 +917,7 @@ export class FruitCountService {
     let img: HTMLImageElement;
 
     if (typeof imageInput === 'string') {
-      this.log('Received filename.', 2);
+      console.log('Received filename.');
       
       try {
         const response = await fetch(imageInput);
@@ -1029,7 +1012,7 @@ export class FruitCountService {
     //const margin = 0;
     const marginTop = Math.max(0, (windowHeight - canvasHeight) / 2);
 
-    this.log(`Container width: ${canvasWidth}`, 2);
+    console.log(`Container width: ${canvasWidth}`, 2);
     this.canvas!.style.width = `${canvasWidth}px`;
     this.canvas!.style.height = `${canvasHeight}px`;
     this.canvas!.style.marginLeft = `${margin}px`;
@@ -1052,7 +1035,7 @@ export class FruitCountService {
     const borderWidth = 10; // Adjust the width of the simulated border
     this.drawRoundedBorder(this.ctx!, 0, 0, imageWidth, imageHeight, radius, borderWidth);
 
-    this.log(`Adjusted canvas dimensions: ratio=${ratio} width=${imageWidth}/${this.canvas!.style.width}, height=${imageHeight}/${this.canvas!.style.height}`, 2);
+    console.log(`Adjusted canvas dimensions: ratio=${ratio} width=${imageWidth}/${this.canvas!.style.width}, height=${imageHeight}/${this.canvas!.style.height}`, 2);
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////
@@ -1123,10 +1106,10 @@ export class FruitCountService {
    */
   updateSensitivity(redraw: boolean=true) {
     this._sensitivityText = this.formatSensitivity(this.sensitivityValue);
-    this.log(`Sensitivity updated: ${this.sensitivityValue}`, 2);
+    console.log(`Sensitivity updated: ${this.sensitivityValue}`, 2);
 
     this.calculateScoreThreshold(this.sensitivityValue);
-    this.log(`Confidence threshold updated to: ${this.scoreThreshold}`, 2);
+    console.log(`Confidence threshold updated to: ${this.scoreThreshold}`, 2);
 
     this.isDecreaseDisabled = this.sensitivityValue <= -5;
     this.isIncreaseDisabled = this.sensitivityValue >= 5;
@@ -1165,7 +1148,7 @@ export class FruitCountService {
         "4": { scoreThreshold: 0.06, iou: 0.45 },
         "5": { scoreThreshold: 0.02, iou: 0.45 }
       };
-      this.log('Loaded profile for tree.', 2);
+      console.log('Loaded profile for tree.');
 
     } else {
       //Default: soil
@@ -1182,7 +1165,7 @@ export class FruitCountService {
         "4": { scoreThreshold: 0.10, iou: 0.35 },
         "5": { scoreThreshold: 0.02, iou: 0.45 }
       };
-      this.log('Loaded profile for soil.', 2);
+      console.log('Loaded profile for soil.');
     };
 
     // Ensure newThreshold is within the valid range
@@ -1217,7 +1200,7 @@ export class FruitCountService {
     let extension: string = '';
     ({filename, extension} = this.splitFilename(full_filename));
     const newFilename: string = `${filename}_count${this._totalSelectedObjects}_s${this.sensitivityValue}.${extension}`
-    this.log(`New filename: ${newFilename}`, 2);
+    console.log(`New filename: ${newFilename}`, 2);
     return newFilename;
   }
   

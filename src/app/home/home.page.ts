@@ -2,7 +2,7 @@ import { Component, QueryList, ViewChild, ViewChildren, ElementRef } from '@angu
 import { Router, NavigationEnd } from '@angular/router';
 import { IonModal, NavController } from '@ionic/angular';
 import { UserService } from 'src/app/services/user.service';
-import { StorageService } from 'src/app/services/storage.service';
+import { UploaderService } from 'src/app/services/uploader.service';
 @Component({
   selector: 'app-home',
   templateUrl: './home.page.html',
@@ -27,13 +27,16 @@ export class HomePage {
   constructor(private router: Router,
               private navCtrl: NavController,
               private userService: UserService,
-              private storageService: StorageService) 
+              private uploaderService: UploaderService) 
   {
+    console.log('Home Page Constructor');
     this.router.events.subscribe((event) => {
       if (event instanceof NavigationEnd) {
         this.isModalOpen = false;
       }
     });
+    console.log('Trying to upload pending analisys in background.');
+    this.uploaderService.uploadPreviousAnalyses('Trying to upload pending analisys in background', false);
   }  
 
   openFruitPage(fruitType: string, fruitSubType: string) {

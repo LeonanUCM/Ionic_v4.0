@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { Platform } from '@ionic/angular';
 import { UserService } from './services/user.service';
 import { StorageService } from './services/storage.service';
+import { NavController } from '@ionic/angular';
 import { environment } from 'src/environments/environment';
 
 @Component({
@@ -28,6 +29,7 @@ export class AppComponent {
   ];
 
   constructor(
+    private navCtrl: NavController,
     private userService: UserService,
     private storageService: StorageService,
     private platform: Platform
@@ -35,6 +37,15 @@ export class AppComponent {
       this.initializeApp(); 
     }
 
+  async ngOnInit() {
+    const isLoggedIn = await this.userService.userLoggedIn;
+    if (isLoggedIn) {
+      this.navCtrl.navigateRoot('/home'); // Redirige a 'home' si el usuario está autenticado
+    } else {
+      this.navCtrl.navigateRoot('/login'); // Redirige a 'login' si no está autenticado
+    }
+  }
+  
   initializeApp() {
     this.platform.ready().then(() => {
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)');
@@ -42,7 +53,7 @@ export class AppComponent {
       
       // Listener para detectar cambios en el tema
       prefersDark.addEventListener('change', (mediaQuery) => {
-        this.toggleDarkTheme(mediaQuery.matches);
+      this.toggleDarkTheme(mediaQuery.matches);
       });
     });
   }

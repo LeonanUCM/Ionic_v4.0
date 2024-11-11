@@ -37,6 +37,7 @@ export class LoginPage {
    * Attempts to automatically log in if credentials are stored and network is available.
    */
   async ionViewDidEnter() {
+    console.log('Login Page Entered');
     try {
       const status = await Network.getStatus();
       if (status.connected) {
@@ -91,7 +92,8 @@ export class LoginPage {
         cssClass: 'custom-alert',
         header: error_title,
         message: error_message,
-        buttons: [{ cssClass: 'alert-button-confirm', text: 'Ok' }],
+        animated: true,
+        buttons: [{ cssClass: 'alert-button-confirm', text: 'Continuar' }],
       });
       await alert.present();
     } else {
@@ -192,6 +194,8 @@ export class LoginPage {
         'No se detectó conexión a Internet. Puedes seguir usando la app; los datos se subirán automáticamente a la nube más tarde.',
       buttons: [{ cssClass: 'alert-button-confirm', text: 'Ok' }],
     });
+    console.warn("Log in without an internet connection");
     await alert.present();
+    await this.router.navigate(['/home']);
   }
 }
