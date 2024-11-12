@@ -1,9 +1,11 @@
 import { User } from '../models/user';
+import { Session } from '../models/session';
 import { environment } from 'src/environments/environment';
 import { CapacitorHttp, HttpResponse } from '@capacitor/core';
 import { Injectable } from '@angular/core';
 import { Router } from '@angular/router';
 import { Network } from '@capacitor/network';
+import { StorageService } from './storage.service';
 
 /**
  * Injectable class that serves as the main controller
@@ -18,8 +20,10 @@ import { Network } from '@capacitor/network';
 export class UserService {
   public user: User = new User();
   public userLoggedIn: boolean = false;
+  public getUserName(): string { return this.user.session_data.userEmail; }
 
-  constructor(private router: Router) {}
+  constructor(private router: Router, 
+              private storageService: StorageService) {}
 
   /**
    * Attempts to log in a user.
@@ -59,9 +63,13 @@ export class UserService {
           refreshToken: userData.data.session_data.refreshToken,
           status: userData.data.session_data.status,
           expireIn: userData.data.session_data.expireIn,
+          userEmail: userData.data.email,
         };
         console.log('User ID:', this.user.session_data.userId);
         this.logExpirationTimeToken(parseInt(this.user.session_data.expireIn, 10));
+        await this.storageService.set('login_credentials', this.user.session_data);
+
+        console.log('Login ok');
         return 'already_registered_user';
       } else if (
         userData.code === 500 &&
@@ -82,6 +90,7 @@ export class UserService {
    * Logs off the user from the app.
    */
   public async logOff(): Promise<void> {
+    console.log('Logoff');
     const options = {
       url: `${environment.api_url}/auth/logout`,
       headers: {
@@ -95,103 +104,15 @@ export class UserService {
       const response: HttpResponse = await CapacitorHttp.post(options);
       if (response.status >= 200 && response.status < 300) {
         console.log('Session ended successfully');
+        await this.storageService.remove('login_credentials');
+        console.log('Session data removed, returning to login page.');
+        this.router.navigate(['/']);
       } else {
         console.warn('The session could not be ended');
       }
       this.userLoggedIn = false;
     } catch (error) {
       console.error('Error in logOff method:', error);
-    }
-  }
-
-  /**
-   * Changes the password for the currently logged-in user.
-   * Used when the user logs in for the first time with a temporary password.
-   *
-   * @param {string} newPassword - The new password for the user.
-   * @returns True if the password was changed successfully, false otherwise.
-   */
-  public async setPassword(newPassword: string): Promise<boolean> {
-    const options = {
-      url: `${environment.api_url}/auth/set-user-password`,
-      headers: { 'Content-Type': 'application/json' },
-      data: { email: this.user.email, password: newPassword },
-    };
-
-    try {
-      const response: HttpResponse = await CapacitorHttp.post(options);
-      if (response.status >= 200 && response.status < 300) {
-        console.log('Password changed successfully');
-        return true;
-      } else {
-        console.warn('Password could not be changed');
-        return false;
-      }
-    } catch (error) {
-      console.error('Error in setPassword method:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Sends a recovery email with a validation code before changing a user's password.
-   *
-   * @param {string} userEmail - The user's email.
-   * @returns True if the recovery email was sent successfully, false otherwise.
-   */
-  public async recoverPassword(userEmail: string): Promise<boolean> {
-    const options = {
-      url: `${environment.api_url}/auth/recover-password`,
-      headers: { 'Content-Type': 'application/json' },
-      data: { email: userEmail },
-    };
-
-    try {
-      const response: HttpResponse = await CapacitorHttp.post(options);
-      if (response.status >= 200 && response.status < 300) {
-        console.log('Recovery email sent successfully');
-        this.user.email = userEmail;
-        return true;
-      } else {
-        console.warn('Recovery email could not be sent');
-        return false;
-      }
-    } catch (error) {
-      console.error('Error in recoverPassword method:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Changes the password for the user who received the recovery email.
-   *
-   * @param {string} newPassword - The new password for the user.
-   * @param {string} confirmationCode - The confirmation code from the recovery email.
-   * @returns True if the password was reset successfully, false otherwise.
-   */
-  public async resetPassword(newPassword: string, confirmationCode: string): Promise<boolean> {
-    const options = {
-      url: `${environment.api_url}/auth/reset-password`,
-      headers: { 'Content-Type': 'application/json' },
-      data: {
-        email: this.user.email,
-        new_password: newPassword,
-        confirmation_code: confirmationCode,
-      },
-    };
-
-    try {
-      const response: HttpResponse = await CapacitorHttp.post(options);
-      if (response.status >= 200 && response.status < 300) {
-        console.log('Password reset successfully');
-        return true;
-      } else {
-        console.warn('Password could not be reset');
-        return false;
-      }
-    } catch (error) {
-      console.error('Error in resetPassword method:', error);
-      return false;
     }
   }
 
@@ -232,6 +153,7 @@ export class UserService {
     };
 
     try {
+      console.log(`Sending data request:`, resultData.result_UUID);
       const response: HttpResponse = await CapacitorHttp.post(options);
       if (response.status >= 200 && response.status < 300) {
         console.log('Result data saved successfully');
@@ -271,7 +193,7 @@ export class UserService {
     };
 
     try {
-      console.log('Sending image upload request:', options.data.name);
+      console.log(`Sending ${imageType} image upload request:`, options.data.name);
       const response: HttpResponse = await CapacitorHttp.post(options);
       if (response.status >= 200 && response.status < 300) {
         console.log(`${imageType.charAt(0).toUpperCase() + imageType.slice(1)} image uploaded successfully`);
@@ -287,63 +209,44 @@ export class UserService {
   }
 
   /**
-   * Sends an error report email with any issue encountered by the user in the app.
-   *
-   * @param {string} errorType - The type of error encountered.
-   * @param {string} errorDescription - A description of the error encountered.
-   * @returns True if the error report email was sent successfully, false otherwise.
-   */
-  public async uploadErrorReport(errorType: string, errorDescription?: string): Promise<boolean> {
-    const requestData: any = {
-      problem: errorType,
-      ...(errorDescription && { description: errorDescription }),
-    };
-
-    const options = {
-      url: `${environment.api_url}/system/report-problem`,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: this.user.session_data.token,
-      },
-      data: requestData,
-    };
-
-    try {
-      const response: HttpResponse = await CapacitorHttp.post(options);
-      if (response.status >= 200 && response.status < 300) {
-        console.log('Error report email sent successfully');
-        return true;
-      } else {
-        console.warn('Error report email could not be sent');
-        return false;
-      }
-    } catch (error) {
-      console.error('Error in uploadErrorReport method:', error);
-      return false;
-    }
-  }
-
-  private delay(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
-  /**
    * Refreshes the token of the currently logged-in user.
    *
    * @returns True if the token was refreshed successfully, false otherwise.
    */
   public async refreshToken(): Promise<boolean> {
+    let sessionRead = new Session();
+    try {
+      console.log('Reading session data');
+      sessionRead = await this.storageService.get('login_credentials');
+    } catch (error) {
+      console.error('Error reading session data:', error);
+      this.router.navigate(['/']);
+      return false;
+    }
+
+    if (sessionRead === null || sessionRead === undefined) {
+      console.log('Cannot refresh token. No session data found. Must login again.');
+      this.router.navigate(['/']);
+      return false;
+    }
+
+    console.log('Read userId:', sessionRead.userId);
+
     const options = {
       url: `${environment.api_url}/auth/refresh-token`,
       headers: {
         'Content-Type': 'application/json',
-        user_id: this.user.session_data.userId,
+        user_id: sessionRead.userId,
       },
-      data: { refresh_token: this.user.session_data.refreshToken },
+      data: { refresh_token: sessionRead.refreshToken },
     };
+
+    console.log('Sending refresh token request:');
 
     try {
       const response: HttpResponse = await CapacitorHttp.post(options);
+      console.log('Token refresh sent');
+      console.log(response);
 
       if (response.status >= 200 && response.status < 300) {
         const resultData = response.data.data;
@@ -353,9 +256,12 @@ export class UserService {
           userId: resultData.user_id,
           status: resultData.status,
           expireIn: resultData.expire_in,
+          userEmail: sessionRead.userEmail,
         };
         console.log('Token refreshed successfully');
         this.logExpirationTimeToken(parseInt(this.user.session_data.expireIn, 10));
+        await this.storageService.set('login_credentials', this.user.session_data);
+        console.log('Session data saved.');
         return true;
       } else {
         console.warn(`Token could not be refreshed. Status: ${response.status}`);
@@ -366,7 +272,7 @@ export class UserService {
       if ( status.connected ) {
           console.error('Error in refreshToken method, redirecting to login page:', error);
           // Optionally, you can redirect to login if token refresh fails due to authentication issues
-          this.router.navigate(['/login']);
+          this.router.navigate(['/']);
       }
       else {
         console.warn('Not connected to the Internet. Continuing offline.');

@@ -15,6 +15,7 @@ import { BehaviorSubject, Observable } from 'rxjs';
 export class UploaderService {
   private badgePendingRequestsSubject: BehaviorSubject<number> = new BehaviorSubject<number>(0);
   public badgePendingRequests$: Observable<number> = this.badgePendingRequestsSubject.asObservable();
+  private uploadQueue: Promise<void> = Promise.resolve(); // Initialize the queue with an empty resolved promise
 
 
   constructor(
@@ -44,6 +45,15 @@ export class UploaderService {
    */
 
   async uploadPreviousAnalyses(loaderMessage: string, showLoader: boolean = false) {
+    // Add the current request to the end of the queue
+    this.uploadQueue = this.uploadQueue.then(() => 
+      this.processUpload(loaderMessage, showLoader)
+    );
+  
+    return this.uploadQueue; // Return the promise chain to allow further handling if needed
+  }
+
+  private async processUpload(loaderMessage: string, showLoader: boolean) {
     try {
       // Refresh token
       await this.userService.refreshToken();
@@ -60,7 +70,7 @@ export class UploaderService {
       this.updateBadgePendingRequests(numberRequests);
 
       if (connected && this.userService.userLoggedIn && pendingAnalyses) {
-        console.log('Trying to upload previous analisys to cloud...');
+        console.log('Trying to upload previous analyses to cloud...');
 
         let loading;
         if ( showLoader) {
@@ -71,15 +81,15 @@ export class UploaderService {
           await loading.present();
         }
 
-        // Start upload without blocking the UI
-        this.performUpload().finally(() => {
-          if (showLoader && loading) {
-            loading.dismiss();
-          }
-        });
+        await this.performUpload(); // Await the upload to ensure it finishes before proceeding
+
+        if (showLoader && loading) {
+          await loading.dismiss();
+        }
+
       }
     } catch (error) {
-      console.error('Error while trying to upload preivous analisys to cloud: ', error);
+      console.error('Error while trying to upload pprevious analyses to cloud: ', error);
     }
   }
 

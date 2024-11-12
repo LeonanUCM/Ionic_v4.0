@@ -13,4 +13,5 @@ export class Session {
     status: string;
     userId: string;
     expireIn: string;
+    userEmail: string;
 }

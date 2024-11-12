@@ -3,7 +3,7 @@ import { StorageService } from '../services/storage.service';
 import { UploaderService } from '../services/uploader.service';
 import { Component, OnInit, AfterViewInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
-import { LoadingController, ToastController, NavController } from '@ionic/angular';
+import { LoadingController, ToastController, NavController, AlertController } from '@ionic/angular';
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -23,6 +23,7 @@ export class FruitCountPage implements OnInit, AfterViewInit {
     private toastController: ToastController,
     private storageService: StorageService,
     public uploaderService: UploaderService,
+    public alertController: AlertController,
     public fruitCountService: FruitCountService | null = null
   ) {
     // Initialize fruitCountService with loading and toast controllers
@@ -30,7 +31,8 @@ export class FruitCountPage implements OnInit, AfterViewInit {
       this.loadingController, 
       this.toastController,
       this.storageService,
-      this.uploaderService
+      this.uploaderService,
+      this.alertController
     );
   }
 

@@ -43,12 +43,8 @@ export class LoginPage {
     try {
       const status = await Network.getStatus();
       if (status.connected) {
-        const storedCredentials = await this.storageService.get('login_credentials');
-        if (storedCredentials) {
-          const credentials = JSON.parse(storedCredentials);
-          this.user_email = credentials.email;
-          this.user_password = credentials.password;
-        }
+        if ( await this.userService.refreshToken() )
+          await this.router.navigate(['/home']);
       } else {
         await this.deactivateOnlineOptions();
       }

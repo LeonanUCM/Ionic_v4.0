@@ -2,7 +2,7 @@ import { StorageService } from '../services/storage.service';
 import { UploaderService } from '../services/uploader.service';
 import { ResultData } from 'src/app/models/resultData';
 import { Injectable } from '@angular/core';
-import { LoadingController, ToastController } from '@ionic/angular';
+import { LoadingController, ToastController, AlertController } from '@ionic/angular';
 import { Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
 import * as exifr from 'exifr';
@@ -37,6 +37,8 @@ export class FruitCountService {
   private _sensitivityValue: number = 0;
   private _sensitivityText: string = 'N';
   private _totalSelectedObjects: number = 0;
+  private fruitWeight: number = 0;
+  private totalWeight: number = 0;
   private lowProbabilitySelectedObjects: number = 0;
   private mediumProbabilitySelectedObjects: number = 0;
   private highProbabilitySelectedObjects: number = 0;
@@ -60,7 +62,8 @@ export class FruitCountService {
     private loadingController: LoadingController, 
     private toastController: ToastController,
     private storageService: StorageService,
-    private uploaderService: UploaderService
+    private uploaderService: UploaderService,
+    private alertController: AlertController
   ) 
   { 
     addIcons({ add });
@@ -193,6 +196,9 @@ export class FruitCountService {
   private async readExif(file: File): Promise<void> {
     const img = new Image();
     img.src = URL.createObjectURL(file);
+    this.imageLocation = `Ubicación desconocida`;
+    this.deviceModel = 'Foto sin Metadata';
+    this.imageDate = 'Fecha desconocida';
 
     img.onload = async () => {
       if (this.ctx) {
@@ -225,7 +231,6 @@ export class FruitCountService {
           } else {
             // If no GPS data in EXIF, get current device location
             console.log('No GPS location found in EXIF data. Attempting to get current device location...');
-            this.imageLocation = `Ubicación desconocida`;
           }
 
           // Obtener la marca y modelo del dispositivo desde los datos EXIF
@@ -236,13 +241,9 @@ export class FruitCountService {
         } else {
           // If no EXIF data found, get current date and location
           console.log('No EXIF data found in the image.');
-          await this.getDateAndLocationFromDevice();
         }
       } catch (error) {
         console.error('Error reading EXIF data:', error);
-        // In case of error, get current date and location
-        this.deviceModel = 'Foto sin Metadata';
-        await this.getDateAndLocationFromDevice();
       }
     };
   }
@@ -277,8 +278,6 @@ export class FruitCountService {
     } catch (error) {
       console.error('Could not get device location:', error);
     }
-
-    this.drawEllipses();
   }
 
   /**
@@ -294,8 +293,6 @@ export class FruitCountService {
     } catch (error) {
       console.error('Could not get device location:', error);
     }
-
-    this.drawEllipses();
   }
 
   /**
@@ -493,7 +490,8 @@ export class FruitCountService {
         // Clear previous predictions and object count
         this.predictionsData.length = 0;
         this.totalSelectedObjects = 0;
-  
+        this.fruitWeight = 0;
+
         const img = new Image();
         img.src = URL.createObjectURL(file);
   
@@ -508,8 +506,10 @@ export class FruitCountService {
   
           try {
             let message = '';
-            if ( this.imageType === "sample" )
+            if ( this.imageType === "sample" ) {
               message = `Cargando modelo...`;
+              this.fruitWeight = 150;
+            }
             else if (numImagesOpened > 1)
               message = `Analizando imagen ${index+1}/${numImagesOpened}...`;
             else
@@ -518,15 +518,15 @@ export class FruitCountService {
             if ( this.imageType === "blank" ) {
               console.log('Blank Image, no prediction.');
               this.totalSelectedObjects = 0;
-            }
-            else {
+              this.fruitWeight = 0;
+            } else {
               await this.showLoading(message);
               const result = await this.predict(inputTensor);
               if (!result || !this.predictBoxes || !this.predictScores) {
                 throw new Error('No results received from prediction.');
               }
+              await this.readExif(file);
             }
-            await this.readExif(file);
             await this.drawEllipses();
           } catch (error) {
             console.error('Error during prediction:', error);
@@ -789,6 +789,7 @@ export class FruitCountService {
       const {filteredBoxes, filteredScores} = await this.applyNonMaxSuppression();
       const ellipses = await this.tensorToEllipses(filteredBoxes, filteredScores);
       this.totalSelectedObjects = ellipses.length;
+      this.totalWeight = Math.round(this.fruitWeight * this.totalSelectedObjects) / 1000;
       this.lowProbabilitySelectedObjects = ellipses.filter(ellipse => ellipse.score < 0.5).length;
       this.mediumProbabilitySelectedObjects = ellipses.filter(ellipse => ellipse.score >= 0.5 && ellipse.score < 0.75).length;
       this.highProbabilitySelectedObjects = ellipses.filter(ellipse => ellipse.score >= 0.75).length;
@@ -811,6 +812,7 @@ export class FruitCountService {
       if ( this.imageType === "blank" ) {
         console.log('Blank Image, no prediction.');
         this.totalSelectedObjects = 0;
+        this.fruitWeight = 0;
       } else {
         console.log(`Selected ${this.totalSelectedObjects} objects.`, 2);
 
@@ -906,6 +908,7 @@ export class FruitCountService {
         }
         else if ( this.imageType === "file" ) {
           this.drawBox(this.imageFilename, 'top-center', 'small');
+          this.isNextDisabled = false;
         }
 
         if ( this.imageType === "blank" ) {
@@ -913,7 +916,11 @@ export class FruitCountService {
         }
         else {
           this.drawBox(`${this.totalSelectedObjects}`, 'top-left', 'large');
-          this.drawBox(this.fruitName, 'bottom-center', 'small');
+          if (this.totalWeight > 0)
+            this.drawBox(`${this.fruitName}: ${this.totalWeight.toLocaleString('es', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg`, 'bottom-center', 'small')
+          else
+            this.drawBox(this.fruitName, 'bottom-center', 'small');
+
           this.drawBox(`${this.imageDate}`, 'top-right', 'small');
           this.drawBox(`GPS: ${this.imageLocation}`, 'bottom-right', 'small');
           this.drawBox(this.deviceModel, 'bottom-left', 'small');
@@ -1474,14 +1481,15 @@ private blobToBase64(blob: Blob): Promise<string> {
 
   //////////////////////////////////////////////////////////////////////////////////////////////
 
-  public async shareCanvasImage(platform: string = "auto"): Promise<void> {
+  public async shareCanvasImage(platform: string = "auto") {
     console.log('shareCanvasImage: platform=', platform);
     const dataUrl = this.getDataUrl(this.canvas!);
     const dataUrlOriginal = this.getDataUrl(this.originalImage!);
     const newFilename = this.enrichFilename(this.imageFilename);
 
     if (platform === "cloud") {
-        // Llamada asíncrona a cloudUploadService sin detener el flujo principal
+       this.isNextDisabled = true;
+       // Llamada asíncrona a cloudUploadService sin detener el flujo principal
        this.storeResults(dataUrl, dataUrlOriginal, this.fruitType, this.fruitSubType, this.totalSelectedObjects, newFilename);
 
         // Hace el download para disco si esta en web browser
@@ -1509,7 +1517,7 @@ private blobToBase64(blob: Blob): Promise<string> {
           });
 
           const fileUri = savedFile.uri;
-          await Share.share({
+          Share.share({
               title: 'Compartir analisis de frutas',
               text: `${this.totalSelectedObjects} ${this.fruitName}!`,
               url: fileUri,
@@ -1578,6 +1586,49 @@ private blobToBase64(blob: Blob): Promise<string> {
     return resizedCanvas;
   }
 
+
+  async inputWeight() {
+    const alert = await this.alertController.create({
+      header: 'Ingrese un peso médio de 1 fruto (en gramos)',
+      inputs: [
+        {
+          name: 'numero',
+          type: 'number',
+          placeholder: 'Ingrese un número entero entre 0 y 10000',
+          min: 0,
+          max: 10000
+        }
+      ],
+      buttons: [
+        {
+          text: 'Cancelar',
+          role: 'cancel',
+          handler: () => {
+            console.log('Cancelado');
+          }
+        },
+        {
+          text: 'Aceptar',
+          handler: (data) => {
+            const valor = parseInt(data.numero, 10);
+            if (isNaN(valor) || valor < 0 || valor > 10000) {
+              console.log('Valor fuera de rango');
+              return false; // Evita que se cierre el alert si el valor no es válido
+            }
+            console.log(valor);
+            this.fruitWeight = valor;
+            this.totalWeight = Math.round(this.fruitWeight * this.totalSelectedObjects) / 1000;
+            return true; // Devuelve true para permitir que el alert se cierre
+          }
+        }
+      ]
+    });
+  
+    await alert.present();
+    this.drawEllipses();
+  }
+
+  
   private mapFruitType(fruitName: string): string {
     const fruitMapping: { [key: string]: string } = {
       "apple-green": "MANZANA VERDE",
@@ -1619,7 +1670,6 @@ private blobToBase64(blob: Blob): Promise<string> {
       const base64Data = dataUrl.split(',')[1];
       const base64DataOriginal = dataUrlOriginal.split(',')[1];
 
-      const weight = 0.1; // Peso promedio para el cálculo PRE
       const fruit = this.mapFruitType(fruitType);
       const type = this.mapFruitSubType(fruitSubType);
 
@@ -1636,9 +1686,9 @@ private blobToBase64(blob: Blob): Promise<string> {
       resultModel.fruit = fruit;
       resultModel.location = this.imageLocation;
       resultModel.image_date = this.imageDate;
-      resultModel.weight = weight;
+      resultModel.weight = this.fruitWeight;
       resultModel.quantities = totalSelectedObjects;
-      resultModel.pre_value = Math.round(totalSelectedObjects * weight);
+      resultModel.pre_value = this.totalWeight;
       resultModel.photo_type = type; // ARBOL/SUELO
       resultModel.small_fruits = this.lowProbabilitySelectedObjects;
       resultModel.medium_fruits = this.mediumProbabilitySelectedObjects;
@@ -1654,7 +1704,7 @@ private blobToBase64(blob: Blob): Promise<string> {
   
       // Guardar en BD el analisis
       console.log('Saving new analisys on storage...');
-      this.storageService.set(imageId, resultModel);
+      await this.storageService.set(imageId, resultModel);
       console.log('Trying to send analisys...');
       this.uploaderService.uploadPreviousAnalyses('Uploading new analisys', false);
     } catch (error) {

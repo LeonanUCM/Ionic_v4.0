@@ -94,10 +94,10 @@ ion-fab-button {
     opacity: 0.9; /* Set opacity to 1 to remove transparency */
     --border-radius: 25%; /* Ensures the button remains circular */
     aspect-ratio: 1 / 1; /* Maintain aspect ratio */
-    min-width: 14vmin;
-    max-width: 14vmin;
-    min-height: 14vmin;
-    max-height: 14vmin;
+    min-width: 12vmin;
+    max-width: 12vmin;
+    min-height: 12vmin;
+    max-height: 12vmin;
     box-shadow: 3px 3px 10px 0 rgba(0, 0, 0, 0.2) !important; /* Box shadow */
 }
 
@@ -143,17 +143,21 @@ ion-fab-button[disabled] {
     border: none;
     transition: border 0.3s ease;
     aspect-ratio: 1 / 1;
-    min-width: 14vmin;
-    max-width: 14vmin;
-    min-height: 14vmin;
-    max-height: 14vmin;
+    min-width: 12vmin;
+    max-width: 12vmin;
+    min-height: 12vmin;
+    max-height: 12vmin;
 }
 
 
 .button-secondary {
     @extend .button;
     --background: var(--ion-color-secondary);
-    --color: var(--ion-color-tertiary);
+    --color: var(--ion-color-dark);
+    min-width: 10vmin;
+    max-width: 10vmin;
+    min-height: 10vmin;
+    max-height: 10vmin;
 }
 
 .button-icon {
@@ -170,24 +174,29 @@ ion-fab-button[disabled] {
 .button-eye-numbers {
     @extend .button-icon;
     background-image: url('/assets/images/icon_numbers_123.png');
-  }
-  
-.button-eye-circles {
-    @extend .button-icon;
-    background-image: url('/assets/images/icon_circles.png');
 }
-  
-
 
 .button-eye-numbers:active {
     @extend .button-icon;
     background-image: url('/assets/images/icon_numbers_123_strike.png');
-  }
-  
+}
+
+
+.button-eye-circles {
+    @extend .button-icon;
+    background-image: url('/assets/images/icon_circles.png');
+}
+
 .button-eye-circles:active {
     @extend .button-icon;
     background-image: url('/assets/images/icon_circles_strike.png');
 }
+  
+.button-scale {
+    @extend .button-icon;
+    background-image: url('/assets/images/scale_dark.png');
+  }
+  
   
 
 .button-home {

@@ -3,6 +3,7 @@ import { Router, NavigationEnd } from '@angular/router';
 import { IonModal, NavController } from '@ionic/angular';
 import { UserService } from 'src/app/services/user.service';
 import { UploaderService } from 'src/app/services/uploader.service';
+import { environment } from 'src/environments/environment';
 
 @Component({
   selector: 'app-home',
@@ -10,6 +11,13 @@ import { UploaderService } from 'src/app/services/uploader.service';
   styleUrls: ['./home.page.scss'],
 })
 export class HomePage {
+  public version: string = environment.version;
+
+  // Public getter to expose getUserId from userService
+  public get userName(): string {
+    return this.userService.getUserName();
+  }
+
   @ViewChild('modal', { static: true }) modal!: IonModal;
   @ViewChildren('imgTree, imgSoil', { read: ElementRef }) ionImages!: QueryList<ElementRef>; // Access imgTree and imgSoil as ElementRef
 
@@ -83,7 +91,5 @@ export class HomePage {
   public logOff() {
     console.log('Logging off...');
     this.userService.logOff();
-    //this.storageService.remove('login_credentials');
-    this.navCtrl.navigateRoot('/login');
   }
 }
