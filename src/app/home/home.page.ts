@@ -3,6 +3,7 @@ import { Router, NavigationEnd } from '@angular/router';
 import { IonModal, NavController } from '@ionic/angular';
 import { UserService } from 'src/app/services/user.service';
 import { UploaderService } from 'src/app/services/uploader.service';
+
 @Component({
   selector: 'app-home',
   templateUrl: './home.page.html',

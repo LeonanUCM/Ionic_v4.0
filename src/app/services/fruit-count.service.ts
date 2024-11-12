@@ -5,6 +5,7 @@ import { Injectable } from '@angular/core';
 import { LoadingController, ToastController } from '@ionic/angular';
 import { Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
+import * as exifr from 'exifr';
 import { Share } from '@capacitor/share';
 import * as tf from '@tensorflow/tfjs';
 import { Filesystem, Directory } from '@capacitor/filesystem';
@@ -46,6 +47,7 @@ export class FruitCountService {
   private imageExample: boolean = true;
   private imageLocation = "";
   private imageDate = "";
+  private deviceModel: string = '';  
   private totalObjects: number = 0;
   private lastDevicePixelRatio = window.devicePixelRatio;
   private showNumbers: boolean = true;
@@ -79,7 +81,7 @@ export class FruitCountService {
     console.log(`configureFruitType: type: ${fruitType}, sub-type: ${fruitSubType}, local name: ${fruitLocalName}`);
     this.fruitType = fruitType;
     this.fruitSubType = fruitSubType;
-    this.fruitName = `${fruitLocalName} ${fruitSubType === 'tree' ? ' en árbol' : ' en suelo'}`;
+    this.fruitName = `${fruitLocalName} ${fruitSubType === 'tree' ? 'en árbol' : 'en suelo'}`;
     this.fruitSampleFilename = `./assets/images/${fruitType}-${fruitSubType}.jpg`;
     this.modelFilename = `./assets/models/${fruitType}-model_js/model.json`;
     this.iouThreshold = 0.5;
@@ -168,20 +170,171 @@ export class FruitCountService {
   }
 
   // Method to get the shape of a 2D array
-/**
- * The `shape` function in TypeScript returns the number of rows and columns in a 2D array.
- * @param {number[][]} array - The `array` parameter in the `shape` function is a two-dimensional array
- * of numbers.
- * @returns An array containing the number of rows and number of columns in the input `array` is being
- * returned.
- */
-  static shape(array: number[][]): [number, number] {
-    const rows = array.length;
-    const cols = array[0].length;
-    return [rows, cols];
+  /**
+   * The `shape` function in TypeScript returns the number of rows and columns in a 2D array.
+   * @param {number[][]} array - The `array` parameter in the `shape` function is a two-dimensional array
+   * of numbers.
+   * @returns An array containing the number of rows and number of columns in the input `array` is being
+   * returned.
+   */
+    static shape(array: number[][]): [number, number] {
+      const rows = array.length;
+      const cols = array[0].length;
+      return [rows, cols];
+    }
+
+  /**
+   * Processes an image file to extract the date and location from its EXIF data.
+   * If the EXIF data is not available, it uses the current date and device's location.
+   * Handles exceptions and logs the process.
+   *
+   * @param file - The image file to process.
+   */
+  private async readExif(file: File): Promise<void> {
+    const img = new Image();
+    img.src = URL.createObjectURL(file);
+
+    img.onload = async () => {
+      if (this.ctx) {
+        console.log(`Saving original image.`);
+        this.originalImage = img;
+      }
+
+      try {
+        // Attempt to extract EXIF data from the image
+        console.log('Attempting to extract EXIF data from the image...');
+        const exifData = await exifr.parse(file, { gps: true, tiff: true, exif: true });
+
+        if (exifData) {
+          console.log('EXIF data found:', exifData);
+
+          // Get the image date from EXIF data
+          if (exifData.DateTimeOriginal) {
+            this.imageDate = this.formatExifDate(exifData.DateTimeOriginal);
+            console.log('Date obtained from EXIF data:', this.imageDate);
+          } else {
+            // If no date in EXIF data, use current date
+            this.imageDate = this.getCurrentDateTime();
+            console.log('No date found in EXIF data. Using current date:', this.imageDate);
+          }
+
+          // Get GPS location from EXIF data
+          if (exifData.latitude && exifData.longitude) {
+            this.imageLocation = `${exifData.latitude.toFixed(6)},${exifData.longitude.toFixed(6)}`;
+            console.log('Location obtained from EXIF data:', this.imageLocation);
+          } else {
+            // If no GPS data in EXIF, get current device location
+            console.log('No GPS location found in EXIF data. Attempting to get current device location...');
+            await this.getLocationFromDevice();
+          }
+
+          // Obtener la marca y modelo del dispositivo desde los datos EXIF
+          const deviceBrand = exifData.Make || 'Marca desconocida';
+          const deviceModel = exifData.Model || 'Modelo desconocido';
+          this.deviceModel = `${deviceBrand} / ${deviceModel}`;
+          console.log(`Marca y modelo del dispositivo obtenidos de los datos EXIF: ${this.deviceModel}`);
+        } else {
+          // If no EXIF data found, get current date and location
+          console.log('No EXIF data found in the image.');
+          await this.getDateAndLocationFromDevice();
+        }
+      } catch (error) {
+        console.error('Error reading EXIF data:', error);
+        // In case of error, get current date and location
+        this.deviceModel = 'Foto sin Metadata';
+        await this.getDateAndLocationFromDevice();
+      }
+      finally {
+        await this.drawEllipses();
+      }
+    };
   }
 
-  
+  /**
+   * Formats a Date object to 'YYYY-MM-DD HH:MM:SS'.
+   *
+   * @param dateObj - The Date object to format.
+   * @returns The formatted date string.
+   */
+  private formatExifDate(dateObj: Date): string {
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    const hours = String(dateObj.getHours()).padStart(2, '0');
+    const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+    const seconds = String(dateObj.getSeconds()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  }
+
+  /**
+   * Gets the current date and device location.
+   */
+  private async getDateAndLocationFromDevice(): Promise<void> {
+    this.imageDate = this.getCurrentDateTime();
+    this.imageLocation = 'Unknown location';
+
+    try {
+      const returnedLocation = await this.getCurrentLocation();
+      this.imageLocation = `${returnedLocation.latitude.toFixed(6)},${returnedLocation.longitude.toFixed(6)}`;
+      console.log('Current device location obtained:', this.imageLocation);
+    } catch (error) {
+      console.error('Could not get device location:', error);
+    }
+
+    this.drawEllipses();
+  }
+
+  /**
+   * Attempts to get the current device location.
+   */
+  private async getLocationFromDevice(): Promise<void> {
+    this.imageLocation = 'Unknown location';
+
+    try {
+      const returnedLocation = await this.getCurrentLocation();
+      this.imageLocation = `${returnedLocation.latitude.toFixed(6)},${returnedLocation.longitude.toFixed(6)}`;
+      console.log('Current device location obtained:', this.imageLocation);
+    } catch (error) {
+      console.error('Could not get device location:', error);
+    }
+
+    this.drawEllipses();
+  }
+
+  /**
+   * Gets the current date and time in 'YYYY-MM-DD HH:MM:SS' format.
+   *
+   * @returns The current date and time as a string.
+   */
+  private getCurrentDateTime(): string {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  }
+
+  /**
+   * Gets the current device GPS location.
+   *
+   * @returns A promise that resolves to an object containing latitude and longitude.
+   */
+  private async getCurrentLocation(): Promise<{ latitude: number; longitude: number }> {
+    try {
+      const position = await Geolocation.getCurrentPosition();
+      const latitude = position.coords.latitude;
+      const longitude = position.coords.longitude;
+      return { latitude, longitude };
+    } catch (error) {
+      console.error('Error getting current location:', error);
+      throw new Error('Could not get current device location.');
+    }
+  }
+
+
   //////////////////////////////////////////////////////////////////////////////////////////////
   
   // Show loading with a customizable message and minimum duration
@@ -322,6 +475,9 @@ export class FruitCountService {
         console.log('All files processed.');
         this.isBadgeOpenFilesVisible = false;
         this.isNextDisabled = true;
+        if ( ! this.imageExample )
+          console.log('Reloading sample image after processing all files.');
+          this.handleImageUpload(this.fruitSampleFilename);
         return; // No more files to process
       }
 
@@ -344,18 +500,6 @@ export class FruitCountService {
             console.log(`Saving original image.`);
             this.originalImage = img;
           }
-  
-        this.imageDate = this.getCurrentDateTime();      
-        this.imageLocation = "Ubicación desconocida";
-        this.getCurrentLocation()
-        .then(returnedLocation => {
-          this.imageLocation = `${returnedLocation.latitude.toFixed(6)},${returnedLocation.longitude.toFixed(6)}`;
-          console.log('Ubicación actual:', this.imageLocation);
-          this.drawEllipses();
-        })
-        .catch(error => {
-          console.log('Cant get GPS Data. Ubicación actual:', this.imageLocation);
-        });      
 
         const inputTensor = this.convertImageToTensor(img);
           console.log(`Input tensor shape: ${inputTensor.shape}`, 1);
@@ -386,6 +530,8 @@ export class FruitCountService {
       } catch (error) {
         console.error('Error loading the image:', error);
       } finally {
+        this.readExif(file);
+  
         // If there are more files to process, wait for the user to click the "Next" button
         const nextButton = document.getElementById('nextButton')!;
         nextButton.onclick = () => {
@@ -677,7 +823,6 @@ export class FruitCountService {
       // Proceed to draw the ellipses on top of the restored image
       if (this.totalSelectedObjects === 0) {
         console.log('No ellipses to draw.');
-        return;
       } else {
         // Use a for...of loop to handle async await
         for (const { centerX, centerY, radiusX, radiusY, index, score } of ellipses) {
@@ -758,8 +903,9 @@ export class FruitCountService {
       }
 
       this.drawBox(this.fruitName, 'bottom-center', 'small');
+      this.drawBox(`${this.imageDate}`, 'top-right', 'small');
       this.drawBox(`GPS: ${this.imageLocation}`, 'bottom-right', 'small');
-      this.drawBox(this.imageDate, 'bottom-left', 'small');
+      this.drawBox(this.deviceModel, 'bottom-left', 'small');
 
       console.log(`Total objects drawn: ${this.totalSelectedObjects}`, 1);
     }    
@@ -1325,13 +1471,7 @@ private blobToBase64(blob: Blob): Promise<string> {
 
     if (platform === "cloud") {
         // Llamada asíncrona a cloudUploadService sin detener el flujo principal
-        this.storeResults(dataUrl, dataUrlOriginal, this.fruitType, this.fruitSubType, this.totalSelectedObjects, newFilename);
-        // .then(() => {
-        //     this.presentToast(`Imágenes y datos enviados a la nube con éxito.`, 'middle');
-        // })
-        // .catch((error) => {
-        //     this.presentToast('¿Tiene conexión a internet? Puede seguir usando la aplicación normalmente, pero los resultados no se guardarán en la nube.', 'middle');
-        // });
+       this.storeResults(dataUrl, dataUrlOriginal, this.fruitType, this.fruitSubType, this.totalSelectedObjects, newFilename);
 
         // Hace el download para disco si esta en web browser
         if ( Capacitor.getPlatform() === 'web' ) {
@@ -1451,37 +1591,6 @@ private blobToBase64(blob: Blob): Promise<string> {
     
     // Return the filename without the extension
     return filename.substring(0, lastDotIndex);
-  }
-
-  public getCurrentDateTime() {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const seconds = String(now.getSeconds()).padStart(2, '0');
-    
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-  }
-
-  /**
-   * Obtiene la ubicación GPS actual del usuario.
-   *
-   * @returns Una promesa que resuelve con un objeto que contiene latitud y longitud.
-   */
-  async getCurrentLocation(): Promise<{ latitude: number; longitude: number }> {
-    try {
-      console.log("Trying to get GPS location.")
-      const position = await Geolocation.getCurrentPosition();
-      const latitude = position.coords.latitude;
-      const longitude = position.coords.longitude;
-      await this.drawEllipses();      
-      return { latitude, longitude };
-    } catch (error) {
-      console.error('Error obteniendo la ubicación:', error);
-      throw new Error('No se pudo obtener la ubicación');
-    }
   }
 
   public async storeResults(dataUrl: string, dataUrlOriginal: string, fruitType: string, fruitSubType: string, totalSelectedObjects: number, currentFilename: string = "") : Promise<void> {

@@ -4,6 +4,7 @@ import { AlertController, LoadingController } from '@ionic/angular';
 import { StorageService } from 'src/app/services/storage.service';
 import { UserService } from 'src/app/services/user.service';
 import { Network } from '@capacitor/network';
+import { environment } from 'src/environments/environment';
 
 /**
  * The LoginPage component handles the logic for the login screen.
@@ -23,6 +24,7 @@ export class LoginPage {
   public user_password: string = '';
   public showPassword: boolean = false;
   public remind_me: boolean = true;
+  public version: string = environment.version;
 
   constructor(
     private userService: UserService,
@@ -66,7 +68,9 @@ export class LoginPage {
    * Validates the input fields before attempting to log in.
    * Stores credentials if applicable and initiates the login process.
    */
-  public async checkValues() {
+  public async checkValues(event: Event) {
+    event.preventDefault();
+    
     let error_message: string = '';
     let error_title: string = 'Error';
     const status = await Network.getStatus();

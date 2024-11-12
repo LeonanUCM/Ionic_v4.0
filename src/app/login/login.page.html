@@ -7,25 +7,26 @@
 
     <!-- Form fields centered vertically with minimal height -->
     <ion-row class="ion-justify-content-center ion-align-items-center form-container">
-      <ion-col class="form-section">
-        <ion-item>
-          <ion-input [(ngModel)]="user_email" id="mail-input" type="email" placeholder="Correo Electrónico"></ion-input>
-        </ion-item>
+      <form (submit)="checkValues($event)">
+        <ion-col class="form-section">
+          <ion-item>
+            <ion-input name="email" [(ngModel)]="user_email" id="mail-input" type="email" placeholder="Correo Electrónico"></ion-input>
+          </ion-item>
 
-        <ion-item>
-          <ion-input [(ngModel)]="user_password" [type]="showPassword ? 'text' : 'password'" placeholder="Contraseña"></ion-input>
-          <ion-button fill="clear" slot="end" aria-label="Show/hide" (click)="togglePasswordVisibility()">
-            <ion-icon [name]="showPassword ? 'eye-off-outline' : 'eye-outline'" slot="icon-only"></ion-icon>
-          </ion-button>
-        </ion-item>
+          <ion-item>
+            <ion-input name="password" [(ngModel)]="user_password" [type]="showPassword ? 'text' : 'password'" placeholder="Contraseña"></ion-input>
+            <ion-button fill="clear" slot="end" aria-label="Show/hide" (click)="togglePasswordVisibility()">
+              <ion-icon [name]="showPassword ? 'eye-off-outline' : 'eye-outline'" slot="icon-only"></ion-icon>
+            </ion-button>
+          </ion-item>
 
-        <ion-checkbox [(ngModel)]="remind_me" labelPlacement="end" class="checkbox">Recordarme</ion-checkbox>
-        <br/>
-        <ion-button id="login-button" (click)="checkValues()" class="button-login">Iniciar sesión</ion-button>
-      </ion-col>
-      <ion-col class="ion-justify-content-center ion-align-items-center reset-password">
-          <!-- <a id="forgot-link" routerLink="/forgot-password">Recuperar contraseña</a> -->
-      </ion-col>
+          <ion-checkbox name="remember" [(ngModel)]="remind_me" labelPlacement="end" class="checkbox">Recordarme</ion-checkbox>
+          <br/>
+          <ion-button id="login-button" class="button-login" type="submit">Iniciar sesión</ion-button>
+          <br/>
+          <div class="center-text">Versión: {{ version }}</div>
+        </ion-col>
+      </form>
     </ion-row>
   </ion-grid>
   

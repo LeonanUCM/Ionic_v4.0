@@ -115,6 +115,13 @@ ion-row {
   color: var(--ion-color-light) !important;
 }
 
+.center-text {
+  text-align: center; /* Centraliza el texto dentro del div */
+  display: flex;
+  justify-content: center; /* Centraliza horizontalmente */
+  width: 100%; /* Se asegura de ocupar el ancho total del contenedor */
+}
+
 
 .custom-loading-class {
   .loading-wrapper {
