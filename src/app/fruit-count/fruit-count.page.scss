@@ -172,17 +172,24 @@ ion-fab-button[disabled] {
     background-image: url('/assets/images/icon_numbers_123.png');
   }
   
-  .button-eye-circles {
+.button-eye-circles {
     @extend .button-icon;
     background-image: url('/assets/images/icon_circles.png');
 }
   
 
-.button-eye-numbers {
+
+.button-eye-numbers:active {
     @extend .button-icon;
-    background-image: url('/assets/images/icon_numbers_123.png');
+    background-image: url('/assets/images/icon_numbers_123_strike.png');
   }
   
+.button-eye-circles:active {
+    @extend .button-icon;
+    background-image: url('/assets/images/icon_circles_strike.png');
+}
+  
+
 .button-home {
     @extend .button-icon;
     background-image: url('/assets/images/agroseguro-logo-simple.png');

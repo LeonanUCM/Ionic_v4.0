@@ -44,7 +44,7 @@ export class FruitCountService {
   private predictScores: tf.Tensor | undefined;
   private _fruitName: string = '';
   private imageFilename: string = '';
-  private imageExample: boolean = true;
+  private imageType: "file" | "sample" | "blank" = "sample";
   private imageLocation = "";
   private imageDate = "";
   private deviceModel: string = '';  
@@ -82,7 +82,7 @@ export class FruitCountService {
     this.fruitType = fruitType;
     this.fruitSubType = fruitSubType;
     this.fruitName = `${fruitLocalName} ${fruitSubType === 'tree' ? 'en árbol' : 'en suelo'}`;
-    this.fruitSampleFilename = `./assets/images/${fruitType}-${fruitSubType}.jpg`;
+    this.fruitSampleFilename = `./assets/images/sample_images/${fruitType}-${fruitSubType}.jpg`;
     this.modelFilename = `./assets/models/${fruitType}-model_js/model.json`;
     this.iouThreshold = 0.5;
     console.log(`Model: ${this.modelFilename}, Sample: ${this.fruitSampleFilename}`);
@@ -95,7 +95,7 @@ export class FruitCountService {
     // Draw the sample image and load the model
     //this.drawRoundedImage(this.canvas!, this.fruitSampleFilename);
     this.loadModel(true);
-    this.handleImageUpload(this.fruitSampleFilename);
+    this.handleImageUpload(undefined, 'sample');
   }
 
 
@@ -225,7 +225,7 @@ export class FruitCountService {
           } else {
             // If no GPS data in EXIF, get current device location
             console.log('No GPS location found in EXIF data. Attempting to get current device location...');
-            await this.getLocationFromDevice();
+            this.imageLocation = `Ubicación desconocida`;
           }
 
           // Obtener la marca y modelo del dispositivo desde los datos EXIF
@@ -243,9 +243,6 @@ export class FruitCountService {
         // In case of error, get current date and location
         this.deviceModel = 'Foto sin Metadata';
         await this.getDateAndLocationFromDevice();
-      }
-      finally {
-        await this.drawEllipses();
       }
     };
   }
@@ -433,15 +430,21 @@ export class FruitCountService {
    * Handles image upload, processing the file and preparing it for analysis.
    * @param input - Event or filename for the image to be uploaded.
    */
-  public async handleImageUpload(input: any) {
+  public async handleImageUpload(input: any, type: 'file' | 'sample' | 'blank' = 'file') {
     console.log('Image upload triggered.');
 
     let files: FileList | File[] = [];
   
+    this.imageType = type;
+    if ( type === 'blank' ) {
+      input =  `./assets/images/sample_images/blank.png`;
+    } else if ( type === 'sample' ) {
+      input = this.fruitSampleFilename;
+    } 
+    
     // Check if the input is an event with files or a single file URL
     if (typeof input === 'string') {
       console.log(`Received filename: ${input}`, 2);
-      this.imageExample = ( this.fruitSampleFilename === input );
 
       try {
         const response = await fetch(input);
@@ -458,13 +461,12 @@ export class FruitCountService {
       }
     } else if (input && input.target && input.target.files && input.target.files.length > 0) {
       console.log('Received event with multiple files.');
-      this.imageExample = false;
       this.isBadgeOpenFilesVisible = true;
       files = input.target.files; // Store all selected files
     } else {
       throw new Error('Invalid input: Expected a file event or a filename.');
     }
-    this.isNextDisabled = this.imageExample;
+    this.isNextDisabled = this.imageType !== 'file';
     const numImagesOpened = files.length;
   
     // Function to handle each file sequentially
@@ -475,9 +477,9 @@ export class FruitCountService {
         console.log('All files processed.');
         this.isBadgeOpenFilesVisible = false;
         this.isNextDisabled = true;
-        if ( ! this.imageExample )
-          console.log('Reloading sample image after processing all files.');
-          this.handleImageUpload(this.fruitSampleFilename);
+        if ( this.imageType === "file" )
+          console.log('Loading blank image after processing all files.');
+          this.handleImageUpload(undefined, 'blank');
         return; // No more files to process
       }
 
@@ -501,24 +503,30 @@ export class FruitCountService {
             this.originalImage = img;
           }
 
-        const inputTensor = this.convertImageToTensor(img);
+          const inputTensor = this.convertImageToTensor(img);
           console.log(`Input tensor shape: ${inputTensor.shape}`, 1);
   
           try {
             let message = '';
-            if ( this.imageExample )
+            if ( this.imageType === "sample" )
               message = `Cargando modelo...`;
             else if (numImagesOpened > 1)
               message = `Analizando imagen ${index+1}/${numImagesOpened}...`;
             else
               message = 'Analizando imagen...';
 
-            await this.showLoading(message);
-            const result = await this.predict(inputTensor);
-            if (!result || !this.predictBoxes || !this.predictScores) {
-              throw new Error('No results received from prediction.');
+            if ( this.imageType === "blank" ) {
+              console.log('Blank Image, no prediction.');
+              this.totalSelectedObjects = 0;
             }
-
+            else {
+              await this.showLoading(message);
+              const result = await this.predict(inputTensor);
+              if (!result || !this.predictBoxes || !this.predictScores) {
+                throw new Error('No results received from prediction.');
+              }
+            }
+            await this.readExif(file);
             await this.drawEllipses();
           } catch (error) {
             console.error('Error during prediction:', error);
@@ -530,7 +538,6 @@ export class FruitCountService {
       } catch (error) {
         console.error('Error loading the image:', error);
       } finally {
-        this.readExif(file);
   
         // If there are more files to process, wait for the user to click the "Next" button
         const nextButton = document.getElementById('nextButton')!;
@@ -787,26 +794,6 @@ export class FruitCountService {
       this.highProbabilitySelectedObjects = ellipses.filter(ellipse => ellipse.score >= 0.75).length;
 
 
-      console.log(`Selected ${this.totalSelectedObjects} objects.`, 2);
-
-      if (showMessage) {
-        if (total_before == 0) {	
-          this.presentToast(`Se han detectado ${this.totalSelectedObjects} ${this.fruitName}.`, 'bottom');
-        } else if (this.totalSelectedObjects === 0) { 
-          this.presentToast(`No se ha detectado ningún ${this.fruitName} con esa sensibilidad.`, 'bottom');
-        } 
-        else if (this.totalSelectedObjects > total_before ) {	
-          this.presentToast(`Encontrados ${this.totalSelectedObjects - total_before} más.`, 'bottom');      
-        }
-        else if (this.totalSelectedObjects < total_before ) {	
-          this.presentToast(`Descartados ${total_before - this.totalSelectedObjects} entre los menos probables.`, 'bottom');      
-        }
-        else {
-          if ( this._sensitivityValue != 0)
-            this.presentToast(`Ningún cambio en número de frutos.`, 'bottom');
-        }
-      }
-
       // Restore the original image before drawing ellipses
       if (this.originalImage instanceof HTMLImageElement && this.ctx) {
         console.log('Restoring original image before drawing ellipses.');
@@ -821,9 +808,30 @@ export class FruitCountService {
       }
   
       // Proceed to draw the ellipses on top of the restored image
-      if (this.totalSelectedObjects === 0) {
-        console.log('No ellipses to draw.');
+      if ( this.imageType === "blank" ) {
+        console.log('Blank Image, no prediction.');
+        this.totalSelectedObjects = 0;
       } else {
+        console.log(`Selected ${this.totalSelectedObjects} objects.`, 2);
+
+        if (showMessage) {
+          if (total_before == 0 && this.totalSelectedObjects > 0) {	
+            this.presentToast(`Se han detectado ${this.totalSelectedObjects} ${this.fruitName}.`, 'bottom');
+          } else if (this.totalSelectedObjects === 0) { 
+            this.presentToast(`No se ha detectado ningún ${this.fruitName} con esa sensibilidad.`, 'bottom');
+          } 
+          else if (this.totalSelectedObjects > total_before ) {	
+            this.presentToast(`Encontrados ${this.totalSelectedObjects - total_before} más.`, 'bottom');      
+          }
+          else if (this.totalSelectedObjects < total_before ) {	
+            this.presentToast(`Descartados ${total_before - this.totalSelectedObjects} entre los menos probables.`, 'bottom');      
+          }
+          else {
+            if ( this._sensitivityValue != 0)
+              this.presentToast(`Ningún cambio en número de frutos.`, 'bottom');
+          }
+        }
+
         // Use a for...of loop to handle async await
         for (const { centerX, centerY, radiusX, radiusY, index, score } of ellipses) {
   
@@ -887,27 +895,30 @@ export class FruitCountService {
         }
       }
 
-      // Title
+      console.log(`Total objects drawn: ${this.totalSelectedObjects}`, 1);
 
-      this.drawBox(`${this.totalSelectedObjects}`, 'top-left', 'large');
+      // Watermarks
       {
         const nextButton = document.getElementById('nextButton') as HTMLButtonElement;
-        if ( this.imageExample ) {
-          nextButton.disabled = true;
+        nextButton.disabled = this.imageType !== "file";
+        if ( this.imageType === "sample" ) {
           this.drawBox('Imagen de Ejemplo', 'middle-center', 'large');
         }
-        else {
-          nextButton.disabled = false;
+        else if ( this.imageType === "file" ) {
           this.drawBox(this.imageFilename, 'top-center', 'small');
         }
+
+        if ( this.imageType === "blank" ) {
+          this.drawBox(this.fruitName, 'top-center', 'medium');
+        }
+        else {
+          this.drawBox(`${this.totalSelectedObjects}`, 'top-left', 'large');
+          this.drawBox(this.fruitName, 'bottom-center', 'small');
+          this.drawBox(`${this.imageDate}`, 'top-right', 'small');
+          this.drawBox(`GPS: ${this.imageLocation}`, 'bottom-right', 'small');
+          this.drawBox(this.deviceModel, 'bottom-left', 'small');
+        }
       }
-
-      this.drawBox(this.fruitName, 'bottom-center', 'small');
-      this.drawBox(`${this.imageDate}`, 'top-right', 'small');
-      this.drawBox(`GPS: ${this.imageLocation}`, 'bottom-right', 'small');
-      this.drawBox(this.deviceModel, 'bottom-left', 'small');
-
-      console.log(`Total objects drawn: ${this.totalSelectedObjects}`, 1);
     }    
     return;
   }

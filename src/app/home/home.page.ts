@@ -55,8 +55,8 @@ export class HomePage {
     this.imgSoil = this.ionImages.find((img) => img.nativeElement.id === 'imgSoil')!;
 
     if (this.imgTree && this.imgSoil) {
-      this.imgTree.nativeElement.src = `assets/images/${this.fruit}-tree.jpg`;
-      this.imgSoil.nativeElement.src = `assets/images/${this.fruit}-soil.jpg`;
+      this.imgTree.nativeElement.src = `assets/images/sample_images/${this.fruit}-tree.jpg`;
+      this.imgSoil.nativeElement.src = `assets/images/sample_images/${this.fruit}-soil.jpg`;
       console.log('Tree Image:', this.imgTree.nativeElement.src);
       console.log('Soil Image:', this.imgSoil.nativeElement.src);
     } else {
