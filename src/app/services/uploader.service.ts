@@ -15,18 +15,26 @@ import { BehaviorSubject, Observable } from 'rxjs';
 export class UploaderService {
   private badgePendingRequestsSubject: BehaviorSubject<number> = new BehaviorSubject<number>(0);
   public badgePendingRequests$: Observable<number> = this.badgePendingRequestsSubject.asObservable();
-  private uploadQueue: Promise<void> = Promise.resolve(); // Initialize the queue with an empty resolved promise
+  private isUploading: boolean = false; // Flag to check if an upload is in progress
+  private intervalId: any; // periodic invocation of uploadPreviousAnalyses
 
 
   constructor(
     private storageService: StorageService,
     private userService: UserService, 
     private loadingController: LoadingController
-  ) {}
+  ) {
+    // Set up periodic invocation every X seconds
+    const intervalInSeconds = 10;
+    this.intervalId = setInterval(() => {
+      this.uploadPreviousAnalyses("Hay analisis previamente guardados que van a ser enviados en segundo plano.", true);
+    }, intervalInSeconds * 2000);    
+  }
 
 
   // Método para actualizar el valor del badge
   public updateBadgePendingRequests(newValue: number): void {
+    console.log('uploadPreviousAnalyses: pendingUploads=', newValue);
     this.badgePendingRequestsSubject.next(newValue);
   }
 
@@ -45,51 +53,59 @@ export class UploaderService {
    */
 
   async uploadPreviousAnalyses(loaderMessage: string, showLoader: boolean = false) {
-    // Add the current request to the end of the queue
-    this.uploadQueue = this.uploadQueue.then(() => 
-      this.processUpload(loaderMessage, showLoader)
-    );
-  
-    return this.uploadQueue; // Return the promise chain to allow further handling if needed
+    // Return immediately if an upload is already in progress
+    if (this.isUploading) {
+      console.log(`uploadPreviousAnalyses: skip periodic execution due to running.`);
+      return Promise.resolve(); // Optionally, you could throw an error or handle it differently
+    }
+
+    this.isUploading = true; // Set flag to indicate upload is in progress
+
+    try {
+      await this.processUpload(loaderMessage, showLoader); // Execute the upload process
+    } finally {
+      this.isUploading = false; // Reset flag after completion
+    }
   }
 
   private async processUpload(loaderMessage: string, showLoader: boolean) {
     try {
-      // Refresh token
-      await this.userService.refreshToken();
-
       const { connected } = await Network.getStatus();
       const pendingAnalyses = await this.pendingAnalyses();
 
-      console.log('pendingAnalyses=', pendingAnalyses);
-      console.log('userLoggedIn=', this.userService.userLoggedIn);
-      console.log('connected=', connected);
-      
+      console.log(`uploadPreviousAnalyses: pendingAnalyses=${pendingAnalyses}, userLoggedIn=${this.userService.userLoggedIn}, connected=${connected}`);
+
       const numberRequests = await this.storageService.numberPendingRequests();
-      console.log('--- pendingUploads=', numberRequests);
+
       this.updateBadgePendingRequests(numberRequests);
 
-      if (connected && this.userService.userLoggedIn && pendingAnalyses) {
-        console.log('Trying to upload previous analyses to cloud...');
+      if (connected && pendingAnalyses) {
+        if (this.userService.userLoggedIn) {
+          console.log('uploadPreviousAnalyses: User is connected. Trying to upload previous analyses to cloud...');
+          await this.userService.refreshToken();
 
-        let loading;
-        if ( showLoader) {
-          loading = await this.loadingController.create({
-            cssClass: 'custom-loading',
-            message: loaderMessage,
+          if (showLoader) {
+            this.presentLoader(loaderMessage, 2);
+          }
+        
+          // Ejecutar performUpload en segundo plano sin esperar a que termine
+          this.performUpload().then(() => {
+            // Aquí puedes manejar cualquier lógica adicional después de la carga, si es necesario
+            console.log('Upload completed in background.');
+            if (showLoader)
+              this.presentLoader(`${numberRequests} analises pendientes enviados a la nube correctamente.`, 2, false);
           });
-          await loading.present();
         }
-
-        await this.performUpload(); // Await the upload to ensure it finishes before proceeding
-
-        if (showLoader && loading) {
-          await loading.dismiss();
+        else {
+          console.warn('uploadPreviousAnalyses: User is not logged in and there is Internet, redirecting.');
+          await this.userService.logOff();
         }
-
+      }
+      else if (!connected && pendingAnalyses) {
+        console.warn('uploadPreviousAnalyses: There is no Internet to try to to send pending analises.');
       }
     } catch (error) {
-      console.error('Error while trying to upload pprevious analyses to cloud: ', error);
+      console.error('uploadPreviousAnalyses: Error while trying to upload pprevious analyses to cloud: ', error);
     }
   }
 
@@ -105,7 +121,7 @@ export class UploaderService {
       // Retrieve all elements in DB except user credentials
       for (const key of keys) {
         if (key !== 'login_credentials') {
-          console.log('Preparing to upload: ', key);
+          console.log('uploadPreviousAnalyses: Preparing to upload: ', key);
           const item = await this.storageService.get(key);
           pendingUploads.push(item);
           keysToDelete.push(key);
@@ -117,7 +133,7 @@ export class UploaderService {
 
       // Iterate over the list of analyses to upload
       for (const element of pendingUploads) {
-        console.log('--- pendingUploads=', numberRequests);
+        console.log('uploadPreviousAnalyses: pendingUploads=', numberRequests);
         this.updateBadgePendingRequests(numberRequests);
 
           // Upload analysis data
@@ -152,7 +168,7 @@ export class UploaderService {
         }
       } else {
         console.warn(
-          'An error occurred while uploading the results, and the operation was aborted'
+          'uploadPreviousAnalyses: An error occurred while uploading the results, and the operation was aborted'
         );
         // Delete the elements to upload to avoid inconsistencies
         for (const key of keysToDelete) {
@@ -164,7 +180,7 @@ export class UploaderService {
     }
     finally {
       const numberRequests = await this.storageService.numberPendingRequests();
-      console.log('pendingUploads=', numberRequests);
+      console.log('uploadPreviousAnalyses: pendingUploads=', numberRequests);
       this.updateBadgePendingRequests(numberRequests);
     }
   }
@@ -181,11 +197,35 @@ export class UploaderService {
       return keys.some(key => key !== 'login_credentials');
     } catch (error) {
       console.error(
-        'An error occurred while checking for analyses to upload: ',
+        'uploadPreviousAnalyses: An error occurred while checking for analyses to upload: ',
         error
       );
       return false;
     }
   }
 
+  /**
+   * Method to show a loader. It blocks indefinitely if timeout is 0,
+   * or dismisses automatically after a specified timeout.
+   * @param loaderMessage The message to display in the loader.
+   * @param timeout Duration in milliseconds before the loader is automatically dismissed. If 0, loader will not auto-dismiss.
+   * @returns A promise that resolves when the loader is dismissed.
+   */
+  async presentLoader(loaderMessage: string, timeout: number, showSpinner: boolean = true): Promise<void> {
+    const loading = await this.loadingController.create({
+      cssClass: 'custom-loading',
+      message: loaderMessage,
+      spinner: showSpinner ? 'bubbles' : null,
+    });
+    await loading.present();
+
+    // Only set auto-dismiss if timeout is greater than 0
+    if (timeout > 0) {
+      setTimeout(async () => {
+        if (loading) {
+          await loading.dismiss();
+        }
+      }, timeout);
+    }
+  }
 }

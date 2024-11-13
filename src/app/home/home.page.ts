@@ -1,4 +1,4 @@
-import { Component, QueryList, ViewChild, ViewChildren, ElementRef } from '@angular/core';
+import { Component, QueryList, ViewChild, ViewChildren, ElementRef, AfterViewInit } from '@angular/core';
 import { Router, NavigationEnd } from '@angular/router';
 import { IonModal, NavController } from '@ionic/angular';
 import { UserService } from 'src/app/services/user.service';
@@ -44,10 +44,19 @@ export class HomePage {
         this.isModalOpen = false;
       }
     });
-    console.log('Trying to upload pending analisys in background.');
-    this.uploaderService.uploadPreviousAnalyses('Trying to upload pending analisys in background', false);
   }  
 
+  //////////////////////////////////////////////////////////////////////////////////////////////
+
+  /**
+   * Lifecycle hook executed after Angular has fully initialized the view.
+   */
+  ngAfterViewInit() {
+    console.log('ngAfterViewInit called');
+    console.log('Trying to send pending analisys...');
+    this.uploaderService.uploadPreviousAnalyses('Enviando analisis previamente guardados.', true);
+  }
+  
   openFruitPage(fruitType: string, fruitSubType: string) {
     this.router.navigate(['/fruit-count'], { queryParams: { fruit_type: fruitType, fruit_sub_type: fruitSubType } });
   }

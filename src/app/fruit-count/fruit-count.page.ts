@@ -1,9 +1,7 @@
 import { FruitCountService } from '../services/fruit-count.service';
-import { StorageService } from '../services/storage.service';
-import { UploaderService } from '../services/uploader.service';
 import { Component, OnInit, AfterViewInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
-import { LoadingController, ToastController, NavController, AlertController } from '@ionic/angular';
+import { Router } from '@angular/router';
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -18,22 +16,10 @@ export class FruitCountPage implements OnInit, AfterViewInit {
   
   constructor(
     private route: ActivatedRoute,
-    private navCtrl: NavController,
-    private loadingController: LoadingController,
-    private toastController: ToastController,
-    private storageService: StorageService,
-    public uploaderService: UploaderService,
-    public alertController: AlertController,
+    private router: Router,
     public fruitCountService: FruitCountService | null = null
   ) {
-    // Initialize fruitCountService with loading and toast controllers
-    this.fruitCountService = new FruitCountService(
-      this.loadingController, 
-      this.toastController,
-      this.storageService,
-      this.uploaderService,
-      this.alertController
-    );
+    console.log('FruitCountPage constructor called');
   }
 
 
@@ -46,7 +32,7 @@ export class FruitCountPage implements OnInit, AfterViewInit {
   ngAfterViewInit() {
     console.log('ngAfterViewInit called');
     console.log('Trying to send pending analisys...');
-    this.uploaderService.uploadPreviousAnalyses('Uploading new analisys', false);
+    this.fruitCountService.uploadPreviousAnalyses('Enviando analisis previamente guardados.', true);
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////
@@ -68,7 +54,7 @@ export class FruitCountPage implements OnInit, AfterViewInit {
     });
 
     // Suscribirse a los cambios de badgeValue$ para actualizar el valor y activar la animación
-    this.uploaderService.badgePendingRequests$.subscribe((value) => {
+    this.fruitCountService.badgePendingRequests$.subscribe((value) => {
       this.triggerAnimationPendingRequests(); // Activar animación
     });    
   }
@@ -97,7 +83,7 @@ export class FruitCountPage implements OnInit, AfterViewInit {
       'peach-yellow': 'Melocotón Amarillo',
       'peach-red': 'Melocotón Rojo'
     };
-    return fruitNames[fruitType] || (this.navCtrl.back(), '');
+    return fruitNames[fruitType] || (this.router.navigate(['/home/']), '');
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////
@@ -106,7 +92,7 @@ export class FruitCountPage implements OnInit, AfterViewInit {
    * Navigates back to the previous page in the navigation stack.
    */
   public goBack() {
-    this.navCtrl.back();
+    this.router.navigate(['/home/']);
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////

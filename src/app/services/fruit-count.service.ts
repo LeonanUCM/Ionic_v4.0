@@ -12,6 +12,7 @@ import { Filesystem, Directory } from '@capacitor/filesystem';
 import { addIcons } from 'ionicons';
 import { add, remove } from 'ionicons/icons';
 import { v4 as uuidv4 } from 'uuid';
+import { Observable } from 'rxjs';
 
 @Injectable({
   providedIn: 'root',
@@ -136,6 +137,14 @@ export class FruitCountService {
 
   private set totalSelectedObjects(value: number) {
     this._totalSelectedObjects = value;
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////
+  public badgePendingRequests$: Observable<number> = this.uploaderService.badgePendingRequests$;
+
+  public uploadPreviousAnalyses(loaderMessage: string, showLoader: boolean = false) {
+    console.log('uploadPreviousAnalyses called');
+    this.uploaderService.uploadPreviousAnalyses(loaderMessage, showLoader);
   }
 
   // Method to slice a 2D array in TypeScript
@@ -543,14 +552,27 @@ export class FruitCountService {
         const nextButton = document.getElementById('nextButton')!;
         nextButton.onclick = () => {
           this.shareCanvasImage("cloud");
-          processFile(index + 1); // Process the next file
+
+          this.awaitAlert('Imagen guardada', 'El analisis será enviado a la nube en segundo plano.')
+          .then(() => {
+            processFile(index + 1); // This will only run after the alert is dismissed
+          });
         };
 
         const discardButton = document.getElementById('discardButton')!;
         discardButton.onclick = () => {
-          this.presentToast(`Imagen descartada.`, 'middle');
-          this.sleep(2);
-          processFile(index + 1); // Process the next file
+
+          let message = '';
+          
+          if ((index + 1) >= numImagesOpened)
+            message = 'Imagen descartada.';
+          else
+            message = 'Seguir para la siguiente imagen.';
+
+          this.awaitAlert('Descartar imagen', message)
+          .then(() => {
+            processFile(index + 1); // This will only run after the alert is dismissed
+          });
         };
       }
     };
@@ -1451,6 +1473,22 @@ private blobToBase64(blob: Blob): Promise<string> {
 
 
 
+  public async awaitAlert(header: string, message: string): Promise<void> {
+    const alert = await this.alertController.create({
+      cssClass: 'custom-alert',
+      header: header,
+      message: message,
+      buttons: [{ cssClass: 'alert-button-confirm', text: 'Ok', role: 'confirm' }],
+    });
+  
+    await alert.present();
+    
+    // Return a promise that resolves when the alert is dismissed
+    await alert.onDidDismiss();
+  }
+  
+
+
   // Methods for the numbers button
   holdNumbers() {
     this.showNumbers = false;
@@ -1595,18 +1633,21 @@ private blobToBase64(blob: Blob): Promise<string> {
 
   async inputWeight() {
     const alert = await this.alertController.create({
-      header: 'Ingrese un peso médio de 1 fruto (en gramos)',
+      cssClass: 'custom-alert',
+      header: 'Ingrese el peso médio de 1 fruto (en gramos)',
       inputs: [
         {
           name: 'numero',
           type: 'number',
-          placeholder: 'Ingrese un número entero entre 0 y 10000',
+          placeholder: '0 a 10000 gramos',
           min: 0,
-          max: 10000
+          max: 10000,
+          value: this.fruitWeight > 0 ? this.fruitWeight.toString() : '' // remember value
         }
       ],
       buttons: [
         {
+          cssClass: 'alert-button-cancel',
           text: 'Cancelar',
           role: 'cancel',
           handler: () => {
@@ -1614,16 +1655,39 @@ private blobToBase64(blob: Blob): Promise<string> {
           }
         },
         {
-          text: 'Aceptar',
+          cssClass: 'alert-button-confirm',
+          text: 'Calcular peso total',
           handler: (data) => {
+            if (data.numero === "") 
+              data.numero = "0";
+            
             const valor = parseInt(data.numero, 10);
-            if (isNaN(valor) || valor < 0 || valor > 10000) {
+            
+            if ( isNaN(valor) || valor < 0 || valor > 10000 ) {
               console.log('Valor fuera de rango');
               return false; // Evita que se cierre el alert si el valor no es válido
             }
+            
             console.log(valor);
             this.fruitWeight = valor;
             this.totalWeight = Math.round(this.fruitWeight * this.totalSelectedObjects) / 1000;
+            this.drawEllipses();
+  
+            // Llama a awaitAlert solo si el valor es válido y después de calcular el peso total
+            if (this.fruitWeight > 0) {
+              this.awaitAlert(
+                `Peso total: ${this.totalWeight.toLocaleString('es', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg`,
+                `${this.totalSelectedObjects} frutos * ${this.fruitWeight}g`
+              );
+            }
+            else {
+              this.awaitAlert(
+                `Peso total removido`,
+                `Al borrar el peso médio de los frutos, el peso total fue removido.`
+              );
+            }
+
+  
             return true; // Devuelve true para permitir que el alert se cierre
           }
         }
@@ -1631,8 +1695,8 @@ private blobToBase64(blob: Blob): Promise<string> {
     });
   
     await alert.present();
-    this.drawEllipses();
   }
+  
 
   
   private mapFruitType(fruitName: string): string {
@@ -1712,7 +1776,7 @@ private blobToBase64(blob: Blob): Promise<string> {
       console.log('Saving new analisys on storage...');
       await this.storageService.set(imageId, resultModel);
       console.log('Trying to send analisys...');
-      this.uploaderService.uploadPreviousAnalyses('Uploading new analisys', false);
+      this.uploaderService.uploadPreviousAnalyses('Subiendo analisis para nube.', false);
     } catch (error) {
       console.error('Error uploading images and data to the cloud:', error);
       throw new Error('Error uploading to the cloud.');

@@ -161,11 +161,19 @@ ion-row {
   
   /* Header */
   --header-color: var(--ion-color-dark) !important;
+  text-transform: none;
 }
 
 .alert-button-confirm {
   background: var(--ion-color-warning) !important;
   color: var(--ion-color-light) !important;
+  text-transform: none;
+}
+
+.alert-button-cancel {
+  background: var(--ion-color-dark) !important;
+  color: var(--ion-color-light) !important;
+  text-transform: none;
 }
 
 /* Clase para ocultar el badge */

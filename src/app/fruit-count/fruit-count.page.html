@@ -23,7 +23,9 @@
     <div class="empty-space"></div>
     <ion-fab-button id="nextButton" [disabled]="fruitCountService.isNextDisabled" [ngClass]="{ 'button_disable': fruitCountService.isNextDisabled }">
       <ion-icon name="cloud-upload"></ion-icon>
-      <ion-badge *ngIf="(uploaderService.badgePendingRequests$ | async) > 0" class="badge-position">{{ this.uploaderService.badgePendingRequests$ | async}}</ion-badge>
+      <ion-badge *ngIf="(fruitCountService.badgePendingRequests$ | async) as badgeValue" class="badge-position">
+        <ng-container *ngIf="badgeValue > 0">{{ badgeValue }}</ng-container>
+      </ion-badge>
     </ion-fab-button>
     <div class="empty-space"></div>
   </ion-fab>

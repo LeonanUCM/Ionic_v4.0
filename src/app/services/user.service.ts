@@ -106,12 +106,12 @@ export class UserService {
         console.log('Session ended successfully');
         await this.storageService.remove('login_credentials');
         console.log('Session data removed, returning to login page.');
-        this.router.navigate(['/']);
       } else {
         console.warn('The session could not be ended');
       }
       this.userLoggedIn = false;
-    } catch (error) {
+      this.router.navigate(['/']);
+  } catch (error) {
       console.error('Error in logOff method:', error);
     }
   }
