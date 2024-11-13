@@ -48,7 +48,7 @@ ion-img {
   justify-content: flex-start;
   align-items: center;
   text-align: center;
-  min-width: 40vmin;
+  min-width: 35vmin;
 }
 
 .home-menu-container {
@@ -107,7 +107,9 @@ ion-img {
 .logo-container {
   background-image: url('/assets/images/agroseguro-logo-dark.png');
   background-color: transparent;
-  width: 40vmin;
+  width: 100%;
+  min-height: 12vh;
+  max-height: 12vh;
   aspect-ratio: 1 / 1;
   background-size: contain; /* Scale the image to fit within the element */
   background-repeat: no-repeat; /* Prevent image repetition */
@@ -119,15 +121,15 @@ ion-button {
   top: 3vmin; /* Adjust the distance from the top */
   right: 3vmin; 
   z-index: 100; /* High z-index to ensure it’s above other elements */
-  font-size: 6vmin;
-  min-height: 8vmin;
-  max-height: 8vmin;
-  min-width: 8vmin;
-  max-width: 8vmin;
+  font-size: 5vh;
+  min-height: 6vh;
+  max-height: 6vh;
+  min-width: 6vh;
+  max-width: 6vh;
 }
 
 ion-icon {
-  z-index: 101; /* High z-index to ensure it’s above other elements */
+  z-index: 100; /* High z-index to ensure it’s above other elements */
   font-size: 6vmin;
   color: var(--ion-color-tertiary);
 }
@@ -142,7 +144,6 @@ ion-icon {
 ion-title {
   height: 10vh;
 }	
-
 
 
 /* Modal Styles */

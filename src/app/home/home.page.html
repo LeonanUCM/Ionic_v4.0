@@ -1,13 +1,10 @@
 <ion-header>
   <ion-button (click)="logOff()">
-    <ion-icon name="log-out-outline" slot="icon-only"></ion-icon>
+    <ion-icon name="log-out-outline" slot="icon-only" (click)="logOff()"></ion-icon>
   </ion-button>
-
   <ion-toolbar class="toolbar-layout">
-    <div class="toolbar-layout">
       <div class="logo-container"></div>
-    </div>
-</ion-toolbar>
+  </ion-toolbar>
 </ion-header>
 <ion-content class="home-content">
   <ion-title class="dark-background">Elija la Fruta:</ion-title>
@@ -22,10 +19,10 @@
         </ion-label>
       </ion-col>
     </ion-row>
+    <br/>
+    <div class="center-text tertiary-text">Versión: {{ version }}</div>
+    <div class="center-text tertiary-text">User: {{ userName }}</div>
   </ion-grid>
-  <br/>
-  <div class="center-text">Versión: {{ version }}</div>
-  <div class="center-text">User: {{ userName }}</div>
 </ion-content>
 
 

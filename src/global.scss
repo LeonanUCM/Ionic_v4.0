@@ -115,6 +115,10 @@ ion-row {
   color: var(--ion-color-light) !important;
 }
 
+.tertiary-text {
+  color: var(--ion-color-tertiary);
+}
+
 .center-text {
   text-align: center; /* Centraliza el texto dentro del div */
   display: flex;

@@ -539,10 +539,17 @@ export class FruitCountService {
         console.error('Error loading the image:', error);
       } finally {
   
-        // If there are more files to process, wait for the user to click the "Next" button
+        // If there are more files to process, wait for the user to click the "Next" or "Discard" buttons
         const nextButton = document.getElementById('nextButton')!;
         nextButton.onclick = () => {
           this.shareCanvasImage("cloud");
+          processFile(index + 1); // Process the next file
+        };
+
+        const discardButton = document.getElementById('discardButton')!;
+        discardButton.onclick = () => {
+          this.presentToast(`Imagen descartada.`, 'middle');
+          this.sleep(2);
           processFile(index + 1); // Process the next file
         };
       }
@@ -1308,7 +1315,6 @@ export class FruitCountService {
       this.drawEllipses();
     }
   }
-
 
   //////////////////////////////////////////////////////////////////////////////////////////////
   // Function to format the pin label
