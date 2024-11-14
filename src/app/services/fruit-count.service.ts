@@ -252,7 +252,7 @@ export class FruitCountService {
           console.log('No EXIF data found in the image.');
         }
       } catch (error) {
-        console.error('Error reading EXIF data:', error);
+        console.error('Error reading EXIF data:', error.message);
       }
     };
   }
@@ -285,7 +285,7 @@ export class FruitCountService {
       this.imageLocation = `${returnedLocation.latitude.toFixed(6)},${returnedLocation.longitude.toFixed(6)}`;
       console.log('Current device location obtained:', this.imageLocation);
     } catch (error) {
-      console.error('Could not get device location:', error);
+      console.error('Could not get device location:', error.message);
     }
   }
 
@@ -300,7 +300,7 @@ export class FruitCountService {
       this.imageLocation = `${returnedLocation.latitude.toFixed(6)},${returnedLocation.longitude.toFixed(6)}`;
       console.log('Current device location obtained:', this.imageLocation);
     } catch (error) {
-      console.error('Could not get device location:', error);
+      console.error('Could not get device location:', error.message);
     }
   }
 
@@ -332,7 +332,7 @@ export class FruitCountService {
       const longitude = position.coords.longitude;
       return { latitude, longitude };
     } catch (error) {
-      console.error('Error getting current location:', error);
+      console.error('Error getting current location:', error.message);
       throw new Error('Could not get current device location.');
     }
   }
@@ -370,7 +370,7 @@ export class FruitCountService {
         this.loadingInstance = null;  // Clear the reference after dismiss
       }
     } catch (error) {
-      console.error('Error while hiding loading:', error);
+      console.error('Error while hiding loading:', error.message);
     }
   }  
 
@@ -424,7 +424,7 @@ export class FruitCountService {
       this.model = await tf.loadGraphModel(this.modelFilename);
       console.log('Model loaded successfully.');
     } catch (error) {
-      console.error('Error loading the model:', error);
+      console.error('Error loading the model:', error.message);
       alert('Error loading the model. Check the console for more details.');
     } finally {
     }
@@ -462,7 +462,7 @@ export class FruitCountService {
         const file = new File([blob], input.split('/').pop()!, { type: blob.type });
         files = [file]; // Process as a single file
       } catch (error) {
-        console.error('Error loading image:', error);
+        console.error('Error loading image:', error.message);
         return;
       }
     } else if (input && input.target && input.target.files && input.target.files.length > 0) {
@@ -538,14 +538,14 @@ export class FruitCountService {
             }
             await this.drawEllipses();
           } catch (error) {
-            console.error('Error during prediction:', error);
+            console.error('Error during prediction:', error.message);
           } finally {
             tf.dispose([inputTensor]);
             await this.hideLoading();
           }
         };
       } catch (error) {
-        console.error('Error loading the image:', error);
+        console.error('Error loading the image:', error.message);
       } finally {
   
         // If there are more files to process, wait for the user to click the "Next" or "Discard" buttons
@@ -644,7 +644,7 @@ export class FruitCountService {
     try {
       outputs = this.model.execute(inputTensor);
     } catch (error) {
-      console.error('Error during model execution:', error);
+      console.error('Error during model execution:', error.message);
       return undefined;
     }
 
@@ -1152,7 +1152,7 @@ export class FruitCountService {
         img = new Image();
         img.src = URL.createObjectURL(file);
       } catch (error) {
-        console.error('Error loading image:', error);
+        console.error('Error loading image:', error.message);
         await this.hideLoading();
         return;
       }
@@ -1555,7 +1555,7 @@ private blobToBase64(blob: Blob): Promise<string> {
           });
 
         } catch (error) {
-            console.error('Error al compartir la imagen:', error);
+            console.error('Error al compartir la imagen:', error.message);
         }
       }
     }
@@ -1619,7 +1619,8 @@ private blobToBase64(blob: Blob): Promise<string> {
   async inputWeight() {
     const alert = await this.alertController.create({
       cssClass: 'custom-alert',
-      header: 'Ingrese el peso médio de 1 fruto (en gramos)',
+      header: 'Ingrese el peso medio de 1 fruto (en gramos)',
+      message: '', // Mensaje inicial vacío
       inputs: [
         {
           name: 'numero',
@@ -1627,7 +1628,7 @@ private blobToBase64(blob: Blob): Promise<string> {
           placeholder: '0 a 10000 gramos',
           min: 0,
           max: 10000,
-          value: this.fruitWeight > 0 ? this.fruitWeight.toString() : '' // remember value
+          value: this.fruitWeight > 0 && this.fruitWeight <= 10000 ? this.fruitWeight.toString() : '' // Recordar valor
         }
       ],
       buttons: [
@@ -1642,15 +1643,27 @@ private blobToBase64(blob: Blob): Promise<string> {
         {
           cssClass: 'alert-button-confirm',
           text: 'Calcular peso total',
-          handler: (data) => {
+          handler: async (data) => {
             if (data.numero === "") 
               data.numero = "0";
             
             const valor = parseInt(data.numero, 10);
             
-            if ( isNaN(valor) || valor < 0 || valor > 10000 ) {
+            if (isNaN(valor) || valor < 0 || valor > 10000) {
               console.log('Valor fuera de rango');
-              return false; // Evita que se cierre el alert si el valor no es válido
+              // Actualizar el mensaje del alert para mostrar el error
+              alert.message = '⚠️ Valor fuera de rango: 0 - 10,000 gramos.';
+              
+              // Enfocar nuevamente el campo de entrada
+              const input = document.querySelector('ion-alert input');
+              if (input) {
+                setTimeout(() => {
+                  (input as HTMLInputElement).focus();
+                }, 100);
+              }
+              
+              // No devolver nada o devolver false explícitamente para evitar que el alert se cierre
+              return false;
             }
             
             console.log(valor);
@@ -1658,28 +1671,34 @@ private blobToBase64(blob: Blob): Promise<string> {
             this.totalWeight = Math.round(this.fruitWeight * this.totalSelectedObjects) / 1000;
             this.drawEllipses();
   
-            // Llama a awaitAlert solo si el valor es válido y después de calcular el peso total
+            // Mostrar el resultado al usuario
             if (this.fruitWeight > 0) {
               this.awaitAlert(
                 `Peso total: ${this.totalWeight.toLocaleString('es', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg`,
                 `${this.totalSelectedObjects} frutos * ${this.fruitWeight}g`
               );
-            }
-            else {
+            } else {
               this.awaitAlert(
                 `Peso total removido`,
-                `Al borrar el peso médio de los frutos, el peso total fue removido.`
+                `Al borrar el peso medio de los frutos, el peso total fue removido.`
               );
             }
-
   
-            return true; // Devuelve true para permitir que el alert se cierre
+            return true; // Permite que el alert se cierre
           }
         }
       ]
     });
   
     await alert.present();
+  
+    // Enfocar el campo de entrada al presentar el alert
+    setTimeout(() => {
+      const input = document.querySelector('ion-alert input');
+      if (input) {
+        (input as HTMLInputElement).focus();
+      }
+    }, 100);
   }
   
 

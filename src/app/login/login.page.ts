@@ -49,7 +49,7 @@ export class LoginPage {
         await this.deactivateOnlineOptions();
       }
     } catch (error) {
-      console.error('Error al recuperar credenciales:', error);
+      console.error('Error al recuperar credenciales:', error.message);
     }
   }
 
@@ -151,7 +151,7 @@ export class LoginPage {
           break;
       }
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('Login error:', error.message);
       const alertError = await this.alertController.create({
         cssClass: 'custom-alert',
         header: 'Error',

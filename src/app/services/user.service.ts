@@ -45,7 +45,7 @@ export class UserService {
       this.userLoggedIn = true;
       return sessionData;
     } catch (error) {
-      console.error('Error reading session data:', error);
+      console.error('Error reading session data:', error.message);
       this.router.navigate(['/']); // Navegar a la página de inicio de sesión en caso de error
       return null;
     }
@@ -107,7 +107,7 @@ export class UserService {
         return null;
       }
     } catch (error) {
-      console.error('Error in login method:', error);
+      console.error('Error in login method:', error.message);
       return null;
     }
   }
@@ -139,7 +139,7 @@ export class UserService {
         console.warn('The session could not be ended');
       }
     } catch (error) {
-      console.error('Error in logOff method:', error);
+      console.error('Error in logOff method:', error.message);
       // Verificar si el error es un `TypeError` con mensaje "Failed to fetch"
       if (error instanceof TypeError && error.message === 'Failed to fetch') {
         console.error('Error in conectivity, do nothing.');
@@ -156,7 +156,7 @@ export class UserService {
    * @param {any} resultData - JSON containing all the data of an analysis.
    * @returns True if the analysis data was saved successfully, false otherwise.
    */
-  public async saveResultData(resultData: any): Promise<boolean> {
+  public async uploadResultData(resultData: any): Promise<boolean> {
     const options = {
       url: `${environment.api_url}/photo/data`,
       headers: {
@@ -197,7 +197,7 @@ export class UserService {
         return false;
       }
     } catch (error) {
-      console.error('Error in saveResultData method:', error);
+      console.error('Error in uploadResultData method:', error.message);
       return false;
     }
   }
@@ -211,7 +211,7 @@ export class UserService {
    */
   public async uploadImage(resultData: any, isResultImage: boolean): Promise<boolean> {
     const imageType = isResultImage ? 'result' : 'original';
-    console.log(`Uploading ${imageType} image`);
+    console.log(`uploadImage: Uploading ${imageType} image`);
 
     const options = {
       url: `${environment.api_url}/photo`,
@@ -227,17 +227,17 @@ export class UserService {
     };
 
     try {
-      console.log(`Sending ${imageType} image upload request:`, options.data.name);
+      console.log(`uploadImage: Sending ${imageType} image upload request:`, options.data.name);
       const response: HttpResponse = await CapacitorHttp.post(options);
       if (response.status >= 200 && response.status < 300) {
-        console.log(`${imageType.charAt(0).toUpperCase() + imageType.slice(1)} image uploaded successfully`);
+        console.log(`uploadImage: ${imageType.charAt(0).toUpperCase() + imageType.slice(1)} image uploaded successfully`);
         return true;
       } else {
-        console.warn(`${imageType.charAt(0).toUpperCase() + imageType.slice(1)} image could not be uploaded`);
+        console.warn(`uploadImage: ${imageType.charAt(0).toUpperCase() + imageType.slice(1)} image could not be uploaded`);
         return false;
       }
     } catch (error) {
-      console.error('Error in uploadImage method:', error);
+      console.error('uploadImage: Error in uploadImage method:', error.message);
       return false;
     }
   }
@@ -298,7 +298,7 @@ export class UserService {
     } catch (error) {
       const status = await Network.getStatus();
       if ( status.connected ) {
-          console.error('Error in refreshToken method, redirecting to login page:', error);
+          console.error('Error in refreshToken method, redirecting to login page:', error.message);
           // Optionally, you can redirect to login if token refresh fails due to authentication issues
           this.router.navigate(['/']);
       }

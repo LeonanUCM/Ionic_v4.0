@@ -16,7 +16,9 @@ export class UploaderService {
   private badgePendingRequestsSubject: BehaviorSubject<number> = new BehaviorSubject<number>(0);
   public badgePendingRequests$: Observable<number> = this.badgePendingRequestsSubject.asObservable();
   private isUploading: boolean = false; // Flag to check if an upload is in progress
-  private intervalId: any; // periodic invocation of uploadPreviousAnalyses
+  private MAX_RETRIES = 5; // Número máximo de reintentos por upload
+  private retryIntervalInSeconds = 10;
+  
 
 
   constructor(
@@ -25,12 +27,14 @@ export class UploaderService {
     private loadingController: LoadingController
   ) {
     // Set up periodic invocation every X seconds
-    const intervalInSeconds = 10;
-    this.intervalId = setInterval(() => {
+    setInterval(() => {
       console.log("uploadPreviousAnalyses: Invoked by timer.")
       this.uploadPreviousAnalyses(true);
-    }, intervalInSeconds * 2000);    
-  }
+    }, this.retryIntervalInSeconds * 2000);    
+
+    console.log("uploadPreviousAnalyses: First attempt to retry pending uploads.")
+    this.uploadPreviousAnalyses(true);
+}
 
 
   // Método para actualizar el valor del badge
@@ -61,12 +65,17 @@ export class UploaderService {
       return Promise.resolve(); // Optionally, you could throw an error or handle it differently
     }
 
-    this.isUploading = true; // Set flag to indicate upload is in progress
+    if (await this.pendingAnalyses() ) {
+      this.isUploading = true; // Set flag to indicate upload is in progress
 
-    try {
-      await this.processUpload(showLoader); // Execute the upload process
-    } finally {
-      this.isUploading = false; // Reset flag after completion
+      try {
+        await this.processUpload(showLoader); // Execute the upload process
+      } finally {
+        this.isUploading = false; // Reset flag after completion
+      }
+    }
+    else {
+      console.log(`uploadPreviousAnalyses: Upload queue is empty, nothing to retry.`);
     }
   }
 
@@ -87,7 +96,7 @@ export class UploaderService {
           await this.userService.refreshToken();
 
           if (showLoader) {
-            this.presentLoader(`${numberRequests} analises pendientes están siendo enviados.`, 4000);
+            this.presentLoader(`${numberRequests} análisis pendientes están siendo enviados.`, 4000);
           }
         
           // Ejecutar performUpload en segundo plano sin esperar a que termine
@@ -95,7 +104,7 @@ export class UploaderService {
             // Aquí puedes manejar cualquier lógica adicional después de la carga, si es necesario
             console.log('Upload completed in background.');
             if (showLoader)
-              this.presentLoader(`${numberRequests} analises pendientes enviados a la nube correctamente.`, 4000, false);
+              this.presentLoader(`Análisis pendientes enviados a la nube.`, 4000, false);
           });
         }
         else {
@@ -105,7 +114,7 @@ export class UploaderService {
         }
       }
       else if (!connected && pendingAnalyses) {
-        console.warn('uploadPreviousAnalyses: There is no Internet to try to to send pending analises.');
+        console.warn('uploadPreviousAnalyses: There is no Internet to try to to send pending análisis.');
         return;
       }
     } catch (error) {
@@ -120,74 +129,90 @@ export class UploaderService {
     try {
       const keys = await this.storageService.keys();
       const pendingUploads = [];
-      const keysToDelete = [];
-
-      // Retrieve all elements in DB except user credentials
+  
+      // Retrieve all elements in DB except user credentials, and initialize retries to current attempts
       for (const key of keys) {
         if (key !== 'login_credentials') {
-          console.log('uploadPreviousAnalyses: Preparing to upload: ', key);
+          console.log('performUpload: Preparing to upload:', key);
           const item = await this.storageService.get(key);
-          pendingUploads.push(item);
-          keysToDelete.push(key);
+          pendingUploads.push({ key, item, retries: item.retries || 0 });
         }
       }
-
-      let errorsOccurred = false;
+  
       let numberRequests = pendingUploads.length;
-
-      // Iterate over the list of analyses to upload
-      for (const element of pendingUploads) {
-        console.log('uploadPreviousAnalyses: pendingUploads=', numberRequests);
-        this.updateBadgePendingRequests(numberRequests);
-
-          // Upload analysis data
-        const dataSaved = await this.userService.saveResultData(element);
-        if (!dataSaved) {
-          // Stop immediately if there was an error
-          errorsOccurred = true;
+      this.updateBadgePendingRequests(numberRequests);
+  
+      // Process the queue
+      while (pendingUploads.length > 0) {
+        // Check for internet connectivity
+        const status = await Network.getStatus();
+        if (!status.connected) {
+          console.warn('No internet connection. Stopping upload process.');
+          // Exit the processing loop; items will be retried in next invocation
           break;
         }
-
-        // Upload result image to S3
-        const resultImageUploaded = await this.userService.uploadImage(element, true);
-        if (!resultImageUploaded) {
-          errorsOccurred = true;
-          break;
-        }
-
-        // Upload original image to S3
-        const originalImageUploaded = await this.userService.uploadImage(element, false);
-        if (!originalImageUploaded) {
-          errorsOccurred = true;
-          break;
-        }
-
-        numberRequests--;
-      }
-
-      // If there were no errors, delete the uploaded elements from the DB
-      if (!errorsOccurred) {
-        for (const key of keysToDelete) {
-          await this.storageService.remove(key);
-        }
-      } else {
-        console.warn(
-          'uploadPreviousAnalyses: An error occurred while uploading the results, and the operation was aborted'
+  
+        const currentUpload = pendingUploads.shift(); // Get the first item in the queue
+  
+        console.log(
+          `Processing item with key: ${currentUpload.key}, Retry attempt: ${currentUpload.retries + 1}`
         );
-        // Delete the elements to upload to avoid inconsistencies
-        for (const key of keysToDelete) {
-          await this.storageService.remove(key);
+  
+        let success = true;
+  
+        // Upload analysis data
+        const dataSaved = await this.userService.uploadResultData(currentUpload.item);
+        if (!dataSaved) {
+          success = false;
+        } else {
+          // Upload result image to S3
+          const resultImageUploaded = await this.userService.uploadImage(currentUpload.item, true);
+          if (!resultImageUploaded) {
+            success = false;
+          } else {
+            // Upload original image to S3
+            const originalImageUploaded = await this.userService.uploadImage(currentUpload.item, false);
+            if (!originalImageUploaded) {
+              success = false;
+            }
+          }
+        }
+  
+        if (success) {
+          // Remove the item from storage upon successful upload
+          await this.storageService.remove(currentUpload.key);
+          numberRequests--;
+          this.updateBadgePendingRequests(numberRequests);
+          console.log(`Successfully uploaded and removed item with key: ${currentUpload.key}`);
+        } else {
+          currentUpload.retries++;
+          currentUpload.item.retries = currentUpload.retries; // Update retries in the item
+  
+          if (currentUpload.retries < this.MAX_RETRIES) {
+            // Update the item in storage with the new retries count
+            await this.storageService.set(currentUpload.key, currentUpload.item);
+            console.warn(
+              `Failed to upload item with key: ${currentUpload.key}. Will retry in next invocation (${currentUpload.retries}/${this.MAX_RETRIES})`
+            );
+          } else {
+            // Remove the item from storage after exceeding max retries
+            await this.storageService.remove(currentUpload.key);
+            numberRequests--;
+            this.updateBadgePendingRequests(numberRequests);
+            console.error(`Failed to upload item with key: ${currentUpload.key} after ${this.MAX_RETRIES} retries. Removing from storage.`);
+          }
         }
       }
     } catch (error) {
-      console.error('Error during upload: ', error);
-    }
-    finally {
+      console.error('Error during upload:', error.message);
+    } finally {
       const numberRequests = await this.storageService.numberPendingRequests();
-      console.log('uploadPreviousAnalyses: pendingUploads=', numberRequests);
+      console.log('performUpload: pendingUploads=', numberRequests);
       this.updateBadgePendingRequests(numberRequests);
     }
   }
+
+  
 
   /**
    * Method responsible for checking if there are elements
