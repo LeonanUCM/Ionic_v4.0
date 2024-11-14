@@ -142,9 +142,9 @@ export class FruitCountService {
   //////////////////////////////////////////////////////////////////////////////////////////////
   public badgePendingRequests$: Observable<number> = this.uploaderService.badgePendingRequests$;
 
-  public uploadPreviousAnalyses(loaderMessage: string, showLoader: boolean = false) {
+  public uploadPreviousAnalyses(showLoader: boolean = false) {
     console.log('uploadPreviousAnalyses called');
-    this.uploaderService.uploadPreviousAnalyses(loaderMessage, showLoader);
+    this.uploaderService.uploadPreviousAnalyses(showLoader);
   }
 
   // Method to slice a 2D array in TypeScript
@@ -351,7 +351,7 @@ export class FruitCountService {
     this.loadingInstance = await this.loadingController.create({
       message: message,
       spinner: 'bubbles',  // Modern spinner style (crescent, dots, bubbles, etc.)
-      cssClass: 'custom-loading-class',  // Optional: Custom CSS class for styling
+      cssClass: 'custom-loading',  // Optional: Custom CSS class for styling
       backdropDismiss: false, // Optional: Prevent dismissing by tapping the backdrop
     });
 
@@ -834,7 +834,7 @@ export class FruitCountService {
         // Draw the original image
         this.drawRoundedImage(this.ctx, this.originalImage);
       } else {
-        console.log('Original image not available. Skipping image restoration.');
+        console.error('Original image not available. Skipping image restoration.');
       }
   
       // Proceed to draw the ellipses on top of the restored image
@@ -1165,14 +1165,6 @@ export class FruitCountService {
 
     // Check if the image is already loaded
     this.adjustCanvasDimensions(img);
-    // if (img.complete) {
-    //   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    // } else {
-    //   // If the image is not loaded, wait for it to load
-    //   img.onload = () => {
-    //     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    //   };
-    // }
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////
@@ -1225,11 +1217,9 @@ export class FruitCountService {
     const windowHeight = window.innerHeight;
     const windowLandscape = (windowWidth / windowHeight) > 1;
     const margin = (windowWidth * 0.025);
-    //const canvasWidth = windowWidth * 0.95;
-
+    
     const canvasWidth = windowWidth - 2 * margin;
     const canvasHeight = canvasWidth / ratio;
-    //const margin = 0;
     const marginTop = Math.max(0, (windowHeight - canvasHeight) / 2);
 
     console.log(`Container width: ${canvasWidth}`, 2);
@@ -1251,9 +1241,11 @@ export class FruitCountService {
     // Draw the original image within the canvas scaled to the full internal size
     this.ctx!.drawImage(img, 0, 0, imageWidth, imageHeight);
 
-    const radius = 20; // Adjust the border-radius
-    const borderWidth = 10; // Adjust the width of the simulated border
-    this.drawRoundedBorder(this.ctx!, 0, 0, imageWidth, imageHeight, radius, borderWidth);
+    if ( this.imageType != 'blank' ) { 
+      const radius = 20; // Adjust the border-radius
+      const borderWidth = 10; // Adjust the width of the simulated border
+      this.drawRoundedBorder(this.ctx!, 0, 0, imageWidth, imageHeight, radius, borderWidth);
+    }
 
     console.log(`Adjusted canvas dimensions: ratio=${ratio} width=${imageWidth}/${this.canvas!.style.width}, height=${imageHeight}/${this.canvas!.style.height}`, 2);
   }
@@ -1535,18 +1527,12 @@ private blobToBase64(blob: Blob): Promise<string> {
        this.isNextDisabled = true;
        // Llamada asíncrona a cloudUploadService sin detener el flujo principal
        this.storeResults(dataUrl, dataUrlOriginal, this.fruitType, this.fruitSubType, this.totalSelectedObjects, newFilename);
-
-        // Hace el download para disco si esta en web browser
-        if ( Capacitor.getPlatform() === 'web' ) {
-          this.downloadImage(dataUrl, newFilename);
-          this.presentToast(`Imagen guardada.`, 'top');
-        }
     } 
     else if (platform === "social")
     {
       if ( Capacitor.getPlatform() === 'web' ) {
           this.downloadImage(dataUrl, newFilename);
-          this.presentToast(`Imagen guardada.`, 'top');
+          this.presentToast(`Download de la imagen completado.`, 'middle');
       } else {
         //mobile
         try {
@@ -1568,7 +1554,6 @@ private blobToBase64(blob: Blob): Promise<string> {
               dialogTitle: 'Compartir Imagen',
           });
 
-          this.presentToast(`Imagen compartida.`, 'top');
         } catch (error) {
             console.error('Error al compartir la imagen:', error);
         }
@@ -1775,8 +1760,9 @@ private blobToBase64(blob: Blob): Promise<string> {
       // Guardar en BD el analisis
       console.log('Saving new analisys on storage...');
       await this.storageService.set(imageId, resultModel);
-      console.log('Trying to send analisys...');
-      this.uploaderService.uploadPreviousAnalyses('Subiendo analisis para nube.', false);
+      console.log('Trying to send analisys inmediatelly...');
+      console.log("uploadPreviousAnalyses: Invoked after save a new image.")
+      this.uploaderService.uploadPreviousAnalyses(false);
     } catch (error) {
       console.error('Error uploading images and data to the cloud:', error);
       throw new Error('Error uploading to the cloud.');

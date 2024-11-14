@@ -31,8 +31,6 @@ export class FruitCountPage implements OnInit, AfterViewInit {
    */
   ngAfterViewInit() {
     console.log('ngAfterViewInit called');
-    console.log('Trying to send pending analisys...');
-    this.fruitCountService.uploadPreviousAnalyses('Enviando analisis previamente guardados.', true);
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////

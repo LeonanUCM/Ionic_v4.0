@@ -23,8 +23,34 @@ export class UserService {
   public getUserName(): string { return this.user.session_data.userEmail; }
 
   constructor(private router: Router, 
-              private storageService: StorageService) {}
+              private storageService: StorageService) {
+    this.readSessionData();
+  }
 
+  // Método separado para inicializar la sesión de forma asíncrona
+  private async readSessionData(): Promise<void> {
+    this.user.session_data = await this.getSessionData();
+
+    if (this.user.session_data === null) {
+      // Si sessionRead es null, significa que hubo un error en getSessionData
+      console.log('Failed to initialize session data');
+    }
+  } 
+
+  public async getSessionData(): Promise<Session | null> {
+    try {
+      console.log('Reading session data');
+      const sessionData = await this.storageService.get('login_credentials');
+      this.user.session_data = sessionData;
+      this.userLoggedIn = true;
+      return sessionData;
+    } catch (error) {
+      console.error('Error reading session data:', error);
+      this.router.navigate(['/']); // Navegar a la página de inicio de sesión en caso de error
+      return null;
+    }
+  }  
+  
   /**
    * Attempts to log in a user.
    *
@@ -102,17 +128,25 @@ export class UserService {
 
     try {
       const response: HttpResponse = await CapacitorHttp.post(options);
-      if (response.status >= 200 && response.status < 300) {
+      console.log('Response:', response);
+      if (response.status >= 200 && response.status <= 401) {
         console.log('Session ended successfully');
         await this.storageService.remove('login_credentials');
         console.log('Session data removed, returning to login page.');
+        this.userLoggedIn = false;
+        this.router.navigate(['/']);
       } else {
         console.warn('The session could not be ended');
       }
-      this.userLoggedIn = false;
-      this.router.navigate(['/']);
-  } catch (error) {
+    } catch (error) {
       console.error('Error in logOff method:', error);
+      // Verificar si el error es un `TypeError` con mensaje "Failed to fetch"
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        console.error('Error in conectivity, do nothing.');
+      } else {
+        this.userLoggedIn = false;
+        this.router.navigate(['/']);
+      }
     }
   }
 
@@ -208,37 +242,31 @@ export class UserService {
     }
   }
 
+
+
   /**
    * Refreshes the token of the currently logged-in user.
    *
    * @returns True if the token was refreshed successfully, false otherwise.
    */
   public async refreshToken(): Promise<boolean> {
-    let sessionRead = new Session();
-    try {
-      console.log('Reading session data');
-      sessionRead = await this.storageService.get('login_credentials');
-    } catch (error) {
-      console.error('Error reading session data:', error);
-      this.router.navigate(['/']);
-      return false;
-    }
-
-    if (sessionRead === null || sessionRead === undefined) {
+    this.readSessionData();
+  
+    if (this.user.session_data === null || this.user.session_data === undefined) {
       console.log('Cannot refresh token. No session data found. Must login again.');
       this.router.navigate(['/']);
       return false;
     }
 
-    console.log('Read userId:', sessionRead.userId);
+    console.log('Read userId:', this.user.session_data.userId);
 
     const options = {
       url: `${environment.api_url}/auth/refresh-token`,
       headers: {
         'Content-Type': 'application/json',
-        user_id: sessionRead.userId,
+        user_id: this.user.session_data.userId,
       },
-      data: { refresh_token: sessionRead.refreshToken },
+      data: { refresh_token: this.user.session_data.refreshToken },
     };
 
     console.log('Sending refresh token request:');
@@ -256,7 +284,7 @@ export class UserService {
           userId: resultData.user_id,
           status: resultData.status,
           expireIn: resultData.expire_in,
-          userEmail: sessionRead.userEmail,
+          userEmail: this.user.session_data.userEmail,
         };
         console.log('Token refreshed successfully');
         this.logExpirationTimeToken(parseInt(this.user.session_data.expireIn, 10));

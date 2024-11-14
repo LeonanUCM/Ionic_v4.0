@@ -53,8 +53,6 @@ export class HomePage {
    */
   ngAfterViewInit() {
     console.log('ngAfterViewInit called');
-    console.log('Trying to send pending analisys...');
-    this.uploaderService.uploadPreviousAnalyses('Enviando analisis previamente guardados.', true);
   }
   
   openFruitPage(fruitType: string, fruitSubType: string) {

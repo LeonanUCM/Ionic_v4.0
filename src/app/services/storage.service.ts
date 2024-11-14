@@ -13,7 +13,7 @@ import { Storage } from '@ionic/storage-angular';
 export class StorageService {
   private _storage: Storage | null = null;
   private storageReady: Promise<void>;
-
+ 
   constructor(private storage: Storage) {
     this.storageReady = this.init();
   }

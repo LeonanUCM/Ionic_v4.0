@@ -27,15 +27,18 @@ export class UploaderService {
     // Set up periodic invocation every X seconds
     const intervalInSeconds = 10;
     this.intervalId = setInterval(() => {
-      this.uploadPreviousAnalyses("Hay analisis previamente guardados que van a ser enviados en segundo plano.", true);
+      console.log("uploadPreviousAnalyses: Invoked by timer.")
+      this.uploadPreviousAnalyses(true);
     }, intervalInSeconds * 2000);    
   }
 
 
   // Método para actualizar el valor del badge
   public updateBadgePendingRequests(newValue: number): void {
-    console.log('uploadPreviousAnalyses: pendingUploads=', newValue);
-    this.badgePendingRequestsSubject.next(newValue);
+    if (this.badgePendingRequestsSubject.value !== newValue) {
+      console.log('updateBadgePendingRequests:', newValue);
+      this.badgePendingRequestsSubject.next(newValue);
+    }
   }
 
   /**
@@ -48,11 +51,10 @@ export class UploaderService {
    * their data to the backend and their images to S3. In case of no errors,
    * they are removed from the local database.
    *
-   * @param {string} loaderMessage - The message to be displayed in the loader (if applicable).
    * @param {boolean} showLoader - Indicates whether to show a loader during the upload.
-   */
+   */ 
 
-  async uploadPreviousAnalyses(loaderMessage: string, showLoader: boolean = false) {
+  async uploadPreviousAnalyses(showLoader: boolean = false) {
     // Return immediately if an upload is already in progress
     if (this.isUploading) {
       console.log(`uploadPreviousAnalyses: skip periodic execution due to running.`);
@@ -62,30 +64,30 @@ export class UploaderService {
     this.isUploading = true; // Set flag to indicate upload is in progress
 
     try {
-      await this.processUpload(loaderMessage, showLoader); // Execute the upload process
+      await this.processUpload(showLoader); // Execute the upload process
     } finally {
       this.isUploading = false; // Reset flag after completion
     }
   }
 
-  private async processUpload(loaderMessage: string, showLoader: boolean) {
+  private async processUpload(showLoader: boolean) {
     try {
       const { connected } = await Network.getStatus();
       const pendingAnalyses = await this.pendingAnalyses();
-
-      console.log(`uploadPreviousAnalyses: pendingAnalyses=${pendingAnalyses}, userLoggedIn=${this.userService.userLoggedIn}, connected=${connected}`);
-
       const numberRequests = await this.storageService.numberPendingRequests();
+      const userLoggedIn = this.userService.userLoggedIn;
+
+      console.log(`uploadPreviousAnalyses: pendingAnalyses=${pendingAnalyses}(${numberRequests}), userLoggedIn=${userLoggedIn}, connected=${connected}`);
 
       this.updateBadgePendingRequests(numberRequests);
 
       if (connected && pendingAnalyses) {
-        if (this.userService.userLoggedIn) {
+        if (userLoggedIn) {
           console.log('uploadPreviousAnalyses: User is connected. Trying to upload previous analyses to cloud...');
           await this.userService.refreshToken();
 
           if (showLoader) {
-            this.presentLoader(loaderMessage, 2);
+            this.presentLoader(`${numberRequests} analises pendientes están siendo enviados.`, 4000);
           }
         
           // Ejecutar performUpload en segundo plano sin esperar a que termine
@@ -93,19 +95,21 @@ export class UploaderService {
             // Aquí puedes manejar cualquier lógica adicional después de la carga, si es necesario
             console.log('Upload completed in background.');
             if (showLoader)
-              this.presentLoader(`${numberRequests} analises pendientes enviados a la nube correctamente.`, 2, false);
+              this.presentLoader(`${numberRequests} analises pendientes enviados a la nube correctamente.`, 4000, false);
           });
         }
         else {
-          console.warn('uploadPreviousAnalyses: User is not logged in and there is Internet, redirecting.');
+          console.warn('uploadPreviousAnalyses: User is not logged in, but there is Internet, redirecting.');
           await this.userService.logOff();
+          return;
         }
       }
       else if (!connected && pendingAnalyses) {
         console.warn('uploadPreviousAnalyses: There is no Internet to try to to send pending analises.');
+        return;
       }
     } catch (error) {
-      console.error('uploadPreviousAnalyses: Error while trying to upload pprevious analyses to cloud: ', error);
+      console.error('uploadPreviousAnalyses: Error while trying to upload previous analyses to cloud: ', error.message);
     }
   }
 
@@ -216,16 +220,8 @@ export class UploaderService {
       cssClass: 'custom-loading',
       message: loaderMessage,
       spinner: showSpinner ? 'bubbles' : null,
+      duration: (timeout > 0) ? timeout : null,
     });
     await loading.present();
-
-    // Only set auto-dismiss if timeout is greater than 0
-    if (timeout > 0) {
-      setTimeout(async () => {
-        if (loading) {
-          await loading.dismiss();
-        }
-      }, timeout);
-    }
   }
 }
