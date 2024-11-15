@@ -47,6 +47,9 @@ export class FruitCountService {
   private _fruitName: string = '';
   private imageFilename: string = '';
   private imageId: any = '';
+  private currentImageIndex: number = 0;
+  private filesToProcess: File[] = [];
+  private numImagesOpened: number = 0;
   private correctedQuantity: number = 0;
   private imageType: "file" | "sample" | "blank" = "sample";
   private imageLocation = "";
@@ -448,172 +451,6 @@ export class FruitCountService {
     }
   }
 
-  //////////////////////////////////////////////////////////////////////////////////////////////
-
-  /**
-   * Handles image upload, processing the file and preparing it for analysis.
-   * @param input - Event or filename for the image to be uploaded.
-   */
-  public async handleImageUpload(input: any, type: 'file' | 'sample' | 'blank' = 'file') {
-    console.error("Image upload triggered.");
-
-    let files: FileList | File[] = [];
-  
-    this.imageType = type;
-    if ( type === 'blank' ) {
-      input =  `./assets/images/sample_images/blank.png`;
-    } else if ( type === 'sample' ) {
-      input = this.fruitSampleFilename;
-    } 
-    
-    // Check if the input is an event with files or a single file URL
-    if (typeof input === 'string') {
-      console.log(`Received filename: ${input}`, 2);
-
-      try {
-        const response = await fetch(input);
-        if (!response.ok) {
-          throw new Error(`Failed to load image from URL: ${input}`);
-        }
-  
-        const blob = await response.blob();
-        const file = new File([blob], input.split('/').pop()!, { type: blob.type });
-        files = [file]; // Process as a single file
-      } catch (error) {
-        console.error('Error loading image:', error.message);
-        return;
-      }
-    } else if (input && input.target && input.target.files && input.target.files.length > 0) {
-      this.isBadgeOpenFilesVisible = true;
-      files = input.target.files; // Store all selected files
-      console.log('Received event with multiple files.');
-    } else {
-      throw new Error('Invalid input: Expected a file event or a filename.');
-    }
-    let numImagesOpened = files.length;
-  
-    // Function to handle each file sequentially
-    const processFile = async (index: number) => {
-      console.log(`Processing file ${index + 1}/${files.length}.`);
-      this.isNextDisabled = this.imageType !== 'file';
-      this.fileIndex = numImagesOpened - index;
-
-      if (index >= numImagesOpened) {
-        console.log('All files processed.');
-        this.isBadgeOpenFilesVisible = false;
-        this.isNextDisabled = true;
-        if ( this.imageType === "blank" ) {
-          return; // No more files to process after present blank
-        } else {
-          console.log('Loading blank image after processing all files.');
-          this.imageType = "blank";
-          this.imageFilename = './assets/images/sample_images/blank.png';
-
-          const response = await fetch(this.imageFilename);
-          if (!response.ok) {
-            throw new Error(`Failed to load image from URL: ${this.imageFilename}`);
-          }
-    
-          const blob = await response.blob();
-          const file = new File([blob], this.imageFilename.split('/').pop()!, { type: blob.type });
-          files = [file]; // Process as a single file
-          numImagesOpened = 1;
-          index = 0;
-        }
-      }
-
-      const file = files[index];
-      this.imageFilename = file.name;
-      this.correctedQuantity = this.extractGtNumber(this.imageFilename);
-      console.log(`Processing file: ${this.imageFilename}`, 2);
-      if ( this.imageType === "blank" )
-        this.imageId = 'blank';
-      else if ( this.imageType === "file" && this.correctedQuantity > 0 )
-        this.imageId = this.imageFilename;
-      else
-        this.imageId = uuidv4();
-      
-      console.warn(`Using Image ID: ${this.imageId}`);
-
-  
-      try {
-        this.resetSensitivity();
-  
-        // Clear previous predictions and object count
-        this.predictionsData.length = 0;
-        this.totalSelectedObjects = 0;
-        this.fruitWeight = 0;
-
-        const img = await this.openImageExif(file);
-        this.originalImage = img;
-
-        console.group(`Predicting image: ${this.imageId}.`)
-
-        const inputTensor = this.convertImageToTensor(img);
-        console.log(`Input tensor shape: ${inputTensor.shape}`, 1);
-
-        let message = '';
-        if ( this.imageType === "sample" ) {
-          message = `Cargando modelo...`;
-          this.fruitWeight = 150;
-        }
-        else if (numImagesOpened > 1)
-          message = `Analizando imagen ${index+1}/${numImagesOpened}...`;
-        else
-          message = 'Analizando imagen...';
-
-        if ( this.imageType === "blank" ) {
-          console.log('Blank Image, no prediction.');
-          this.totalSelectedObjects = 0;
-          this.fruitWeight = 0;
-        } else {
-          await this.showLoading(message);
-          const result = await this.predict(inputTensor);
-          if (!result || !this.predictBoxes || !this.predictScores) {
-            throw new Error('No results received from prediction.');
-          }
-        }
-        tf.dispose([inputTensor]);
-      } catch (error) {
-        console.error('Error processing image:', error.message);
-      } finally {
-        console.groupEnd();
-        await this.drawEllipses();
-        await this.hideLoading();
-  
-        // If there are more files to process, wait for the user to click the "Next" or "Discard" buttons
-        const nextButton = document.getElementById('nextButton')!;
-        nextButton.onclick = () => {
-          this.shareCanvasImage("cloud");
-
-          this.awaitAlert('Imagen guardada', 'El analisis será enviado a la nube en segundo plano.')
-          .then(() => {
-            processFile(index + 1); // This will only run after the alert is dismissed
-          });
-        };
-
-        const discardButton = document.getElementById('discardButton')!;
-        discardButton.onclick = () => {
-
-          let message = '';
-          
-          if ((index + 1) >= numImagesOpened)
-            message = 'Imagen descartada.';
-          else
-            message = 'Seguir para la siguiente imagen.';
-
-          this.awaitAlert('Descartar imagen', message)
-          .then(() => {
-            processFile(index + 1); // This will only run after the alert is dismissed
-          });
-        };
-      }
-    };
-  
-    // Start processing the first file
-    processFile(0);
-  }
-  
 
   //////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1836,4 +1673,254 @@ private blobToBase64(blob: Blob): Promise<string> {
       throw new Error('Error uploading to the cloud.');
     }
   }
+
+
+
+
+
+  //////////////////////////////////////////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+/**
+ * Maneja la carga de imágenes, procesando el archivo y preparándolo para el análisis.
+ * @param input - Evento o nombre de archivo para la imagen a cargar.
+ * @param type - Tipo de imagen: 'file', 'sample' o 'blank'.
+ */
+public async handleImageUpload(input: any, type: 'file' | 'sample' | 'blank' = 'file') {
+  console.error("Image upload triggered.");
+
+  try {
+    this.imageType = type;
+
+    // Obtener los archivos a procesar y configurar índices
+    this.filesToProcess = await this.getFilesToProcess(input, type);
+    this.numImagesOpened = this.filesToProcess.length;
+    this.currentImageIndex = 0;
+
+    // Configurar los botones una sola vez
+    this.setupNextAndDiscardButtons();
+
+    // Iniciar el procesamiento del primer archivo
+    this.processFile();
+  } catch (error) {
+    console.error('Error in handleImageUpload:', error.message);
+  }
+}
+
+/**
+ * Obtiene los archivos a procesar basándose en el tipo y la entrada proporcionada.
+ * @param input - Entrada de usuario o nombre de archivo.
+ * @param type - Tipo de imagen.
+ * @returns Lista de archivos a procesar.
+ */
+private async getFilesToProcess(input: any, type: 'file' | 'sample' | 'blank'): Promise<File[]> {
+  let files: File[] = [];
+
+  if (type === 'blank') {
+    input = `./assets/images/sample_images/blank.png`;
+  } else if (type === 'sample') {
+    input = this.fruitSampleFilename;
+  }
+
+  if (typeof input === 'string') {
+    console.log(`Received filename: ${input}`, 2);
+
+    try {
+      const file = await this.fetchFileFromURL(input);
+      files = [file]; // Procesar como un solo archivo
+    } catch (error) {
+      console.error('Error loading image:', error.message);
+      throw error;
+    }
+  } else if (input && input.target && input.target.files && input.target.files.length > 0) {
+    this.isBadgeOpenFilesVisible = true;
+    files = Array.from(input.target.files); // Almacenar todos los archivos seleccionados
+    console.log('Received event with multiple files.');
+  } else {
+    throw new Error('Invalid input: Expected a file event or a filename.');
+  }
+
+  return files;
+}
+
+/**
+ * Descarga un archivo desde una URL y lo convierte en un objeto File.
+ * @param url - URL del archivo a descargar.
+ * @returns Objeto File creado a partir del blob descargado.
+ */
+private async fetchFileFromURL(url: string): Promise<File> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to load image from URL: ${url}`);
+  }
+
+  const blob = await response.blob();
+  const fileName = url.split('/').pop()!;
+  return new File([blob], fileName, { type: blob.type });
+}
+
+/**
+ * Procesa el archivo actual basado en `currentImageIndex`.
+ */
+private async processFile() {
+  console.log(`Processing file ${this.currentImageIndex + 1}/${this.numImagesOpened}.`, 2);
+  this.isNextDisabled = this.imageType !== 'file';
+  this.fileIndex = this.numImagesOpened - this.currentImageIndex;
+
+  if (this.currentImageIndex >= this.numImagesOpened) {
+    await this.handleAllFilesProcessed();
+    return;
+  }
+
+  const file = this.filesToProcess[this.currentImageIndex];
+  this.initializeFileProcessing(file);
+
+  try {
+    this.resetProcessingState();
+
+    await this.performImageProcessing(file);
+  } catch (error) {
+    console.error('Error processing image:', error.message);
+  } finally {
+    console.groupEnd();
+    await this.drawEllipses();
+    await this.hideLoading();
+  }
+}
+
+/**
+ * Maneja el escenario cuando se han procesado todas las imágenes.
+ */
+private async handleAllFilesProcessed() {
+  console.log('All files processed.');
+  this.isBadgeOpenFilesVisible = false;
+  this.isNextDisabled = true;
+
+  if (this.imageType === "blank") {
+    return; // No hay más archivos para procesar después de mostrar la imagen en blanco
+  } else {
+    console.log('Loading blank image after processing all files.');
+    this.imageType = "blank";
+    this.imageFilename = './assets/images/sample_images/blank.png';
+
+    const file = await this.fetchFileFromURL(this.imageFilename);
+    this.filesToProcess = [file]; // Procesar como un solo archivo
+    this.numImagesOpened = 1;
+    this.currentImageIndex = 0;
+
+    // Reiniciar el procesamiento con la imagen en blanco
+    this.processFile();
+  }
+}
+
+/**
+ * Inicializa las variables necesarias para procesar el archivo.
+ * @param file - Archivo a procesar.
+ */
+private initializeFileProcessing(file: File) {
+  this.imageFilename = file.name;
+  this.correctedQuantity = this.extractGtNumber(this.imageFilename);
+  console.log(`Processing file: ${this.imageFilename}`, 2);
+
+  if (this.imageType === "blank") {
+    this.imageId = 'blank';
+  } else if (this.imageType === "file" && this.correctedQuantity > 0) {
+    this.imageId = this.imageFilename;
+  } else {
+    this.imageId = uuidv4();
+  }
+
+  console.warn(`Using Image ID: ${this.imageId}`);
+}
+
+/**
+ * Restablece el estado antes de procesar una nueva imagen.
+ */
+private resetProcessingState() {
+  this.resetSensitivity();
+
+  // Limpiar predicciones anteriores y conteo de objetos
+  this.predictionsData.length = 0;
+  this.totalSelectedObjects = 0;
+  this.fruitWeight = 0;
+}
+
+/**
+ * Realiza el procesamiento de la imagen, incluyendo predicción y carga.
+ * @param file - Archivo de imagen a procesar.
+ */
+private async performImageProcessing(file: File) {
+  const img = await this.openImageExif(file);
+  this.originalImage = img;
+
+  console.group(`Predicting image: ${this.imageId}.`);
+
+  const inputTensor = this.convertImageToTensor(img);
+  console.log(`Input tensor shape: ${inputTensor.shape}`, 1);
+
+  let message = '';
+  if (this.imageType === "sample") {
+    message = `Cargando modelo...`;
+    this.fruitWeight = 150;
+  } else if (this.numImagesOpened > 1) {
+    message = `Analizando imagen ${this.currentImageIndex + 1}/${this.numImagesOpened}...`;
+  } else {
+    message = 'Analizando imagen...';
+  }
+
+  if (this.imageType === "blank") {
+    console.log('Blank Image, no prediction.');
+    this.totalSelectedObjects = 0;
+    this.fruitWeight = 0;
+  } else {
+    await this.showLoading(message);
+    const result = await this.predict(inputTensor);
+    if (!result || !this.predictBoxes || !this.predictScores) {
+      throw new Error('No results received from prediction.');
+    }
+  }
+  tf.dispose([inputTensor]);
+}
+
+/**
+ * Configura los botones de "Siguiente" y "Descartar" para avanzar en el procesamiento.
+ */
+private setupNextAndDiscardButtons() {
+  const nextButton = document.getElementById('nextButton')!;
+  nextButton.onclick = () => {
+    this.shareCanvasImage("cloud");
+
+    this.awaitAlert('Imagen guardada', 'El análisis será enviado a la nube en segundo plano.')
+      .then(() => {
+        this.currentImageIndex++;
+        this.processFile(); // Continuar con el siguiente archivo
+      });
+  };
+
+  const discardButton = document.getElementById('discardButton')!;
+  discardButton.onclick = () => {
+    let message = '';
+
+    if ((this.currentImageIndex + 1) >= this.numImagesOpened) {
+      message = 'Imagen descartada.';
+    } else {
+      message = 'Seguir para la siguiente imagen.';
+    }
+
+    this.awaitAlert('Descartar imagen', message)
+      .then(() => {
+        this.currentImageIndex++;
+        this.processFile(); // Continuar con el siguiente archivo
+      });
+  };
+}
+
+  
 }
