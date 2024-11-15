@@ -93,6 +93,7 @@ export class LoginPage {
         header: error_title,
         message: error_message,
         animated: true,
+        backdropDismiss: false,
         buttons: [{ cssClass: 'alert-button-confirm', text: 'Continuar' }],
       });
       await alert.present();
@@ -133,6 +134,7 @@ export class LoginPage {
           const alertInactive = await this.alertController.create({
             cssClass: 'custom-alert',
             header: 'Usuário inactivo',
+            backdropDismiss: false,            
             message:
               'El status de su usuário es inactivo. No tienes acceso a la aplicación.',
             buttons: [{ cssClass: 'alert-button-confirm', text: 'Ok' }],
@@ -145,6 +147,7 @@ export class LoginPage {
             cssClass: 'custom-alert',
             header: 'No se pudo iniciar sesión',
             message: 'Por favor, revisa tus credenciales e intentalo nuevamente.',
+            backdropDismiss: false,
             buttons: [{ cssClass: 'alert-button-confirm', text: 'Ok' }],
           });
           await alertDefault.present();
@@ -156,6 +159,7 @@ export class LoginPage {
         cssClass: 'custom-alert',
         header: 'Error',
         message: 'Error inesperado. Por favor, inténtalo nuevamente más tarde.',
+        backdropDismiss: false,
         buttons: [{ cssClass: 'alert-button-confirm', text: 'Ok' }],
       });
       await alertError.present();
@@ -192,6 +196,7 @@ export class LoginPage {
       header: 'Sin conexión a Internet',
       message:
         'No se detectó conexión a Internet. Puedes seguir usando la app; los datos se subirán automáticamente a la nube más tarde.',
+      backdropDismiss: false,        
       buttons: [{ cssClass: 'alert-button-confirm', text: 'Ok' }],
     });
     console.warn("Log in without an internet connection");

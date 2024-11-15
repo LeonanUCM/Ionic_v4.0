@@ -234,12 +234,11 @@ export class UserService {
         return true;
       } else {
         console.warn(`uploadImage: ${imageType.charAt(0).toUpperCase() + imageType.slice(1)} image could not be uploaded`);
-        return false;
       }
     } catch (error) {
-      console.error('uploadImage: Error in uploadImage method:', error.message);
-      return false;
+      console.error('uploadImage: Error in request on uploadImage method :', error.message);
     }
+    return false;
   }
 
 
@@ -250,62 +249,67 @@ export class UserService {
    * @returns True if the token was refreshed successfully, false otherwise.
    */
   public async refreshToken(): Promise<boolean> {
-    this.readSessionData();
-  
-    if (this.user.session_data === null || this.user.session_data === undefined) {
-      console.log('Cannot refresh token. No session data found. Must login again.');
-      this.router.navigate(['/']);
-      return false;
-    }
-
-    console.log('Read userId:', this.user.session_data.userId);
-
-    const options = {
-      url: `${environment.api_url}/auth/refresh-token`,
-      headers: {
-        'Content-Type': 'application/json',
-        user_id: this.user.session_data.userId,
-      },
-      data: { refresh_token: this.user.session_data.refreshToken },
-    };
-
-    console.log('Sending refresh token request:');
+    console.group("Refresh token.")
 
     try {
-      const response: HttpResponse = await CapacitorHttp.post(options);
-      console.log('Token refresh sent');
-      console.log(response);
-
-      if (response.status >= 200 && response.status < 300) {
-        const resultData = response.data.data;
-        this.user.session_data = {
-          token: resultData.token,
-          refreshToken: resultData.refresh_token,
-          userId: resultData.user_id,
-          status: resultData.status,
-          expireIn: resultData.expire_in,
-          userEmail: this.user.session_data.userEmail,
-        };
-        console.log('Token refreshed successfully');
-        this.logExpirationTimeToken(parseInt(this.user.session_data.expireIn, 10));
-        await this.storageService.set('login_credentials', this.user.session_data);
-        console.log('Session data saved.');
-        return true;
-      } else {
-        console.warn(`Token could not be refreshed. Status: ${response.status}`);
+      this.readSessionData();
+    
+      if (this.user.session_data === null || this.user.session_data === undefined) {
+        console.log('Cannot refresh token. No session data found. Must login again.');
+        this.router.navigate(['/']);
         return false;
       }
-    } catch (error) {
-      const status = await Network.getStatus();
-      if ( status.connected ) {
-          console.error('Error in refreshToken method, redirecting to login page:', error.message);
-          // Optionally, you can redirect to login if token refresh fails due to authentication issues
-          this.router.navigate(['/']);
+
+      console.log('Read userId:', this.user.session_data.userId);
+
+      const options = {
+        url: `${environment.api_url}/auth/refresh-token`,
+        headers: {
+          'Content-Type': 'application/json',
+          user_id: this.user.session_data.userId,
+        },
+        data: { refresh_token: this.user.session_data.refreshToken },
+      };
+
+      console.log('Sending refresh token request:');
+
+      try {
+        const response: HttpResponse = await CapacitorHttp.post(options);
+        console.log('Token refresh sent');
+
+        if (response.status >= 200 && response.status < 300) {
+          const resultData = response.data.data;
+          this.user.session_data = {
+            token: resultData.token,
+            refreshToken: resultData.refresh_token,
+            userId: resultData.user_id,
+            status: resultData.status,
+            expireIn: resultData.expire_in,
+            userEmail: this.user.session_data.userEmail,
+          };
+          console.log('Token refreshed successfully');
+          this.logExpirationTimeToken(parseInt(this.user.session_data.expireIn, 10));
+          await this.storageService.set('login_credentials', this.user.session_data);
+          console.log('Session data saved.');
+          return true;
+        } else {
+          console.warn(`Token could not be refreshed. Status: ${response.status}`);
+          return false;
+        }
+      } catch (error) {
+        const status = await Network.getStatus();
+        if ( status.connected ) {
+            console.error('Error in refreshToken method, redirecting to login page:', error.message);
+            // Optionally, you can redirect to login if token refresh fails due to authentication issues
+            this.router.navigate(['/']);
+        }
+        else {
+          console.warn('Not connected to the Internet. Continuing offline.');
+        }
+        return false;
       }
-      else {
-        console.warn('Not connected to the Internet. Continuing offline.');
-      }
-      return false;
+    } finally {
+      console.groupEnd();
     }
   }
 

@@ -128,7 +128,9 @@ ion-row {
 
 
 .custom-loading {
+  border-radius: 12px !important;  /* Rounded corners */
   .loading-wrapper {
+    border-radius: 12px !important;  /* Rounded corners */
     --box-shadow: 3px 3px 10px 0 rgba(0, 0, 0, 0.2) !important; /* Box shadow */
     background: rgba(250, 250, 250, 0.8) !important;  /* Semi-transparent background */
     border-radius: 12px !important;  /* Rounded corners */
@@ -151,11 +153,14 @@ ion-row {
   --border-radius: 15px;
   text-align: center;
   font-weight: bold; 
-  animation: slide-up 0.8s ease-out, fade-out 0.5s ease-in 3.5s forwards; /* Entrada y salida */
+  min-width: 70%;
+  max-width: 70%;
+  left: 15%;
 }
 
 /* Estilos para la alerta personalizada */
 .custom-alert {
+  border-radius: 12px !important;  /* Rounded corners */
   /* Fondo de la alerta */
   --background: var(--ion-color-tertiary)  !important;
   
@@ -165,12 +170,14 @@ ion-row {
 }
 
 .alert-button-confirm {
+  border-radius: 12px !important;  /* Rounded corners */
   background: var(--ion-color-warning) !important;
   color: var(--ion-color-light) !important;
   text-transform: none;
 }
 
 .alert-button-cancel {
+  border-radius: 12px !important;  /* Rounded corners */
   background: var(--ion-color-dark) !important;
   color: var(--ion-color-light) !important;
   text-transform: none;

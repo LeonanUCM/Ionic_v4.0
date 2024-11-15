@@ -9,16 +9,17 @@ import { BehaviorSubject, Observable } from 'rxjs';
  * Injectable class to handle the automatic upload of
  * analyses stored in the local database to the backend.
  */
+
+
 @Injectable({
   providedIn: 'root',
 })
 export class UploaderService {
   private badgePendingRequestsSubject: BehaviorSubject<number> = new BehaviorSubject<number>(0);
   public badgePendingRequests$: Observable<number> = this.badgePendingRequestsSubject.asObservable();
-  private isUploading: boolean = false; // Flag to check if an upload is in progress
   private MAX_RETRIES = 5; // Número máximo de reintentos por upload
-  private retryIntervalInSeconds = 10;
-  
+  private retryIntervalInSeconds = 300;
+  private static isUploadingFlag: boolean = false;
 
 
   constructor(
@@ -26,14 +27,14 @@ export class UploaderService {
     private userService: UserService, 
     private loadingController: LoadingController
   ) {
+    console.log("First attempt to retry pending uploads.")
+    this.uploadPreviousAnalyses(true);
+    
     // Set up periodic invocation every X seconds
     setInterval(() => {
-      console.log("uploadPreviousAnalyses: Invoked by timer.")
+      console.log(`Invoking uploadPreviousAnalyses by timer.`)
       this.uploadPreviousAnalyses(true);
-    }, this.retryIntervalInSeconds * 2000);    
-
-    console.log("uploadPreviousAnalyses: First attempt to retry pending uploads.")
-    this.uploadPreviousAnalyses(true);
+    }, this.retryIntervalInSeconds * 1000);    
 }
 
 
@@ -58,67 +59,48 @@ export class UploaderService {
    * @param {boolean} showLoader - Indicates whether to show a loader during the upload.
    */ 
 
-  async uploadPreviousAnalyses(showLoader: boolean = false) {
-    // Return immediately if an upload is already in progress
-    if (this.isUploading) {
-      console.log(`uploadPreviousAnalyses: skip periodic execution due to running.`);
-      return Promise.resolve(); // Optionally, you could throw an error or handle it differently
+  public async uploadPreviousAnalyses(showLoader: boolean = false) {
+
+    if (UploaderService.isUploadingFlag) {
+      console.warn(`performUpload: Upload already in progress. Skipping...`);
+      return;
     }
 
-    if (await this.pendingAnalyses() ) {
-      this.isUploading = true; // Set flag to indicate upload is in progress
+    const { connected } = await Network.getStatus();
+    const pendingAnalyses = await this.pendingAnalyses();
+    const numberRequests = await this.storageService.numberPendingRequests();
+    const userLoggedIn = this.userService.userLoggedIn;
 
-      try {
-        await this.processUpload(showLoader); // Execute the upload process
-      } finally {
-        this.isUploading = false; // Reset flag after completion
-      }
-    }
-    else {
-      console.log(`uploadPreviousAnalyses: Upload queue is empty, nothing to retry.`);
-    }
-  }
+    console.log(`pendingAnalyses=${pendingAnalyses}(${numberRequests}), userLoggedIn=${userLoggedIn}, connected=${connected}`);
 
-  private async processUpload(showLoader: boolean) {
-    try {
-      const { connected } = await Network.getStatus();
-      const pendingAnalyses = await this.pendingAnalyses();
-      const numberRequests = await this.storageService.numberPendingRequests();
-      const userLoggedIn = this.userService.userLoggedIn;
+    this.updateBadgePendingRequests(numberRequests);
 
-      console.log(`uploadPreviousAnalyses: pendingAnalyses=${pendingAnalyses}(${numberRequests}), userLoggedIn=${userLoggedIn}, connected=${connected}`);
+    if (connected && pendingAnalyses) {
+      if (userLoggedIn) {
+        console.log('User is connected. Trying to upload previous analyses to cloud...');
+        await this.userService.refreshToken();
 
-      this.updateBadgePendingRequests(numberRequests);
-
-      if (connected && pendingAnalyses) {
-        if (userLoggedIn) {
-          console.log('uploadPreviousAnalyses: User is connected. Trying to upload previous analyses to cloud...');
-          await this.userService.refreshToken();
-
-          if (showLoader) {
-            this.presentLoader(`${numberRequests} análisis pendientes están siendo enviados.`, 4000);
-          }
-        
-          // Ejecutar performUpload en segundo plano sin esperar a que termine
-          this.performUpload().then(() => {
-            // Aquí puedes manejar cualquier lógica adicional después de la carga, si es necesario
-            console.log('Upload completed in background.');
-            if (showLoader)
-              this.presentLoader(`Análisis pendientes enviados a la nube.`, 4000, false);
-          });
+        if (showLoader) {
+          this.presentLoader(`${numberRequests} análisis pendientes están siendo enviados.`, 4000);
         }
-        else {
-          console.warn('uploadPreviousAnalyses: User is not logged in, but there is Internet, redirecting.');
-          await this.userService.logOff();
-          return;
-        }
+      
+        // Ejecutar performUpload en segundo plano sin esperar a que termine
+        this.performUpload().then(() => {
+          // Aquí puedes manejar cualquier lógica adicional después de la carga, si es necesario
+          console.log('Upload completed in background.');
+          if (showLoader)
+            this.presentLoader(`Análisis pendientes enviados a la nube.`, 4000, false);
+        });
       }
-      else if (!connected && pendingAnalyses) {
-        console.warn('uploadPreviousAnalyses: There is no Internet to try to to send pending análisis.');
+      else {
+        console.warn('User is not logged in, but there is Internet, redirecting.');
+        await this.userService.logOff();
         return;
       }
-    } catch (error) {
-      console.error('uploadPreviousAnalyses: Error while trying to upload previous analyses to cloud: ', error.message);
+    }
+    else if (!connected && pendingAnalyses) {
+      console.warn('There is no Internet to try to to send pending análisis.');
+      return;
     }
   }
 
@@ -126,89 +108,103 @@ export class UploaderService {
    * Performs the upload of analyses data and images.
    */
   private async performUpload() {
-    try {
-      const keys = await this.storageService.keys();
-      const pendingUploads = [];
-  
-      // Retrieve all elements in DB except user credentials, and initialize retries to current attempts
-      for (const key of keys) {
-        if (key !== 'login_credentials') {
-          console.log('performUpload: Preparing to upload:', key);
-          const item = await this.storageService.get(key);
-          pendingUploads.push({ key, item, retries: item.retries || 0 });
-        }
-      }
-  
-      let numberRequests = pendingUploads.length;
-      this.updateBadgePendingRequests(numberRequests);
-  
-      // Process the queue
-      while (pendingUploads.length > 0) {
-        // Check for internet connectivity
-        const status = await Network.getStatus();
-        if (!status.connected) {
-          console.warn('No internet connection. Stopping upload process.');
-          // Exit the processing loop; items will be retried in next invocation
-          break;
-        }
-  
-        const currentUpload = pendingUploads.shift(); // Get the first item in the queue
-  
-        console.log(
-          `Processing item with key: ${currentUpload.key}, Retry attempt: ${currentUpload.retries + 1}`
-        );
-  
-        let success = true;
-  
-        // Upload analysis data
-        const dataSaved = await this.userService.uploadResultData(currentUpload.item);
-        if (!dataSaved) {
-          success = false;
-        } else {
-          // Upload result image to S3
-          const resultImageUploaded = await this.userService.uploadImage(currentUpload.item, true);
-          if (!resultImageUploaded) {
-            success = false;
-          } else {
-            // Upload original image to S3
-            const originalImageUploaded = await this.userService.uploadImage(currentUpload.item, false);
-            if (!originalImageUploaded) {
-              success = false;
-            }
+
+    if (UploaderService.isUploadingFlag) {
+      console.warn(`performUpload: Upload already in progress. Skipping...`);
+    }
+    else {
+      console.warn(`setting isUploadingFlag to true.`);
+      UploaderService.isUploadingFlag = true; // Set flag to indicate upload is in progress
+
+      console.groupCollapsed("Performing Upload");
+      try {
+        const keys = await this.storageService.keys();
+        const pendingUploads = [];
+    
+        // Retrieve all elements in DB except user credentials, and initialize retries to current attempts
+        for (const key of keys) {
+          if (key !== 'login_credentials') {
+            console.log('performUpload: Preparing to upload:', key);
+            const item = await this.storageService.get(key);
+            pendingUploads.push({ key, item, retries: item.retries || 0 });
           }
         }
-  
-        if (success) {
-          // Remove the item from storage upon successful upload
-          await this.storageService.remove(currentUpload.key);
-          numberRequests--;
-          this.updateBadgePendingRequests(numberRequests);
-          console.log(`Successfully uploaded and removed item with key: ${currentUpload.key}`);
-        } else {
-          currentUpload.retries++;
-          currentUpload.item.retries = currentUpload.retries; // Update retries in the item
-  
-          if (currentUpload.retries < this.MAX_RETRIES) {
-            // Update the item in storage with the new retries count
-            await this.storageService.set(currentUpload.key, currentUpload.item);
-            console.warn(
-              `Failed to upload item with key: ${currentUpload.key}. Will retry in next invocation (${currentUpload.retries}/${this.MAX_RETRIES})`
-            );
+    
+        let numberRequests = pendingUploads.length;
+        console.log("Number of pending uploads:", numberRequests);
+        this.updateBadgePendingRequests(numberRequests);
+    
+        // Process the queue
+        while (pendingUploads.length > 0) {
+          // Check for internet connectivity
+          const status = await Network.getStatus();
+          if (!status.connected) {
+            console.warn('No internet connection. Stopping upload process.');
+            // Exit the processing loop; items will be retried in next invocation
+            break;
+          }
+    
+          const currentUpload = pendingUploads.shift(); // Get the first item in the queue
+    
+          console.log(
+            `Processing item with key: ${currentUpload.key}, Retry attempt: ${currentUpload.retries + 1}`
+          );
+    
+          let success = true;
+    
+          // Upload analysis data
+          const dataSaved = await this.userService.uploadResultData(currentUpload.item);
+          if (!dataSaved) {
+            success = false;
           } else {
-            // Remove the item from storage after exceeding max retries
+            // Upload result image to S3
+            const resultImageUploaded = await this.userService.uploadImage(currentUpload.item, true);
+            if (!resultImageUploaded) {
+              success = false;
+            } else {
+              // Upload original image to S3
+              const originalImageUploaded = await this.userService.uploadImage(currentUpload.item, false);
+              if (!originalImageUploaded) {
+                success = false;
+              }
+            }
+          }
+    
+          if (success) {
+            // Remove the item from storage upon successful upload
             await this.storageService.remove(currentUpload.key);
             numberRequests--;
             this.updateBadgePendingRequests(numberRequests);
-            console.error(`Failed to upload item with key: ${currentUpload.key} after ${this.MAX_RETRIES} retries. Removing from storage.`);
+            console.log(`Successfully uploaded and removed item with key: ${currentUpload.key}`);
+          } else {
+            currentUpload.retries++;
+            currentUpload.item.retries = currentUpload.retries; // Update retries in the item
+    
+            if (currentUpload.retries < this.MAX_RETRIES) {
+              // Update the item in storage with the new retries count
+              await this.storageService.set(currentUpload.key, currentUpload.item);
+              console.warn(
+                `Failed to upload item with key: ${currentUpload.key}. Will retry in next invocation (${currentUpload.retries}/${this.MAX_RETRIES})`
+              );
+            } else {
+              // Remove the item from storage after exceeding max retries
+              await this.storageService.remove(currentUpload.key);
+              numberRequests--;
+              this.updateBadgePendingRequests(numberRequests);
+              console.error(`Failed to upload item with key: ${currentUpload.key} after ${this.MAX_RETRIES} retries. Removing from storage.`);
+            }
           }
         }
+      } catch (error) {
+        console.error('Error during upload:', error.message);
+      } finally {
+        const numberRequests = await this.storageService.numberPendingRequests();
+        console.log('performUpload: pendingUploads=', numberRequests);
+        this.updateBadgePendingRequests(numberRequests);
+        console.groupEnd();
+        console.warn(`setting isUploadingFlag to false.`);
+        UploaderService.isUploadingFlag = false; // Set flag to indicate upload is in progress
       }
-    } catch (error) {
-      console.error('Error during upload:', error.message);
-    } finally {
-      const numberRequests = await this.storageService.numberPendingRequests();
-      console.log('performUpload: pendingUploads=', numberRequests);
-      this.updateBadgePendingRequests(numberRequests);
     }
   }
 
@@ -247,6 +243,7 @@ export class UploaderService {
       spinner: showSpinner ? 'bubbles' : null,
       duration: (timeout > 0) ? timeout : null,
     });
+    console.log(`Presented Loader: ${loaderMessage}`);
     await loading.present();
   }
 }

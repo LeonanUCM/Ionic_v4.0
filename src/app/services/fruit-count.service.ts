@@ -12,7 +12,7 @@ import { Filesystem, Directory } from '@capacitor/filesystem';
 import { addIcons } from 'ionicons';
 import { add, remove } from 'ionicons/icons';
 import { v4 as uuidv4 } from 'uuid';
-import { Observable } from 'rxjs';
+import { Observable, timeout } from 'rxjs';
 
 @Injectable({
   providedIn: 'root',
@@ -202,60 +202,80 @@ export class FruitCountService {
    *
    * @param file - The image file to process.
    */
-  private async readExif(file: File): Promise<void> {
-    const img = new Image();
-    img.src = URL.createObjectURL(file);
-    this.imageLocation = `Ubicación desconocida`;
-    this.deviceModel = 'Foto sin Metadata';
-    this.imageDate = 'Fecha desconocida';
-
-    img.onload = async () => {
-      if (this.ctx) {
-        console.log(`Saving original image.`);
-        this.originalImage = img;
+  private async openImageExif(file: File, img?: HTMLImageElement): Promise<HTMLImageElement> {
+    return new Promise((resolve, reject) => {
+      const imageToUse = img || new Image();
+  
+      // Only create a new image if none is provided
+      if (!img) {
+        imageToUse.src = URL.createObjectURL(file);
       }
-
-      try {
-        // Attempt to extract EXIF data from the image
-        console.log('Attempting to extract EXIF data from the image...');
-        const exifData = await exifr.parse(file, { gps: true, tiff: true, exif: true });
-
-        if (exifData) {
-          console.log('EXIF data found:', exifData);
-
-          // Get the image date from EXIF data
-          if (exifData.DateTimeOriginal) {
-            this.imageDate = this.formatExifDate(exifData.DateTimeOriginal);
-            console.log('Date obtained from EXIF data:', this.imageDate);
+  
+      // Default metadata values
+      this.imageLocation = `Ubicación desconocida`;
+      this.deviceModel = 'Foto sin Metadata';
+      this.imageDate = 'Fecha desconocida';
+  
+      imageToUse.onload = async () => {
+        console.groupCollapsed("Opening image and Reading EXIF");
+  
+        try {
+          // Attempt to extract EXIF data from the file
+          console.log('Attempting to extract EXIF data from the image...');
+          const exifData = await exifr.parse(file, { gps: true, tiff: true, exif: true });
+  
+          if (exifData) {
+            console.log('EXIF data found:', exifData);
+  
+            // Get the image date from EXIF data
+            if (exifData.DateTimeOriginal) {
+              this.imageDate = this.formatExifDate(exifData.DateTimeOriginal);
+              console.log('Date obtained from EXIF data:', this.imageDate);
+            } else {
+              // If no date in EXIF data, use the current date
+              this.imageDate = this.getCurrentDateTime();
+              console.log('No date found in EXIF data. Using current date:', this.imageDate);
+            }
+  
+            // Get GPS location from EXIF data
+            if (exifData.latitude && exifData.longitude) {
+              this.imageLocation = `${exifData.latitude.toFixed(6)},${exifData.longitude.toFixed(6)}`;
+              console.log('Location obtained from EXIF data:', this.imageLocation);
+            } else {
+              console.log('No GPS location found in EXIF data. Attempting to get current device location...');
+            }
+  
+            // Get device make and model from EXIF data
+            const deviceBrand = exifData.Make || 'Marca desconocida';
+            const deviceModel = exifData.Model || 'Modelo desconocido';
+            this.deviceModel = `${deviceBrand} / ${deviceModel}`;
+            console.log(`Device make and model obtained from EXIF data: ${this.deviceModel}`);
           } else {
-            // If no date in EXIF data, use current date
-            this.imageDate = this.getCurrentDateTime();
-            console.log('No date found in EXIF data. Using current date:', this.imageDate);
+            console.log('No EXIF data found in the image.');
           }
-
-          // Get GPS location from EXIF data
-          if (exifData.latitude && exifData.longitude) {
-            this.imageLocation = `${exifData.latitude.toFixed(6)},${exifData.longitude.toFixed(6)}`;
-            console.log('Location obtained from EXIF data:', this.imageLocation);
-          } else {
-            // If no GPS data in EXIF, get current device location
-            console.log('No GPS location found in EXIF data. Attempting to get current device location...');
-          }
-
-          // Obtener la marca y modelo del dispositivo desde los datos EXIF
-          const deviceBrand = exifData.Make || 'Marca desconocida';
-          const deviceModel = exifData.Model || 'Modelo desconocido';
-          this.deviceModel = `${deviceBrand} / ${deviceModel}`;
-          console.log(`Marca y modelo del dispositivo obtenidos de los datos EXIF: ${this.deviceModel}`);
-        } else {
-          // If no EXIF data found, get current date and location
-          console.log('No EXIF data found in the image.');
+  
+          // Resolve with the Image object after EXIF processing is complete
+          resolve(imageToUse);
+        } catch (error) {
+          console.error('Error reading EXIF data:', error.message);
+          reject(error); // Reject the promise on error
+        } finally {
+          console.groupEnd();
         }
-      } catch (error) {
-        console.error('Error reading EXIF data:', error.message);
+      };
+  
+      imageToUse.onerror = (error) => {
+        console.error('Error loading image:', error);
+        reject(error); // Reject the promise if image loading fails
+      };
+  
+      // If `img` is already loaded, invoke `onload` directly
+      if (img && img.complete) {
+        imageToUse.onload!(new Event('load'));
       }
-    };
+    });
   }
+  
 
   /**
    * Formats a Date object to 'YYYY-MM-DD HH:MM:SS'.
@@ -437,7 +457,7 @@ export class FruitCountService {
    * @param input - Event or filename for the image to be uploaded.
    */
   public async handleImageUpload(input: any, type: 'file' | 'sample' | 'blank' = 'file') {
-    console.log('Image upload triggered.');
+    console.log("Image upload triggered.");
 
     let files: FileList | File[] = [];
   
@@ -472,11 +492,11 @@ export class FruitCountService {
     } else {
       throw new Error('Invalid input: Expected a file event or a filename.');
     }
-    this.isNextDisabled = this.imageType !== 'file';
     const numImagesOpened = files.length;
   
     // Function to handle each file sequentially
     const processFile = async (index: number) => {
+      this.isNextDisabled = this.imageType !== 'file';
       this.fileIndex = numImagesOpened - index;
 
       if (index >= numImagesOpened) {
@@ -501,52 +521,42 @@ export class FruitCountService {
         this.totalSelectedObjects = 0;
         this.fruitWeight = 0;
 
-        const img = new Image();
-        img.src = URL.createObjectURL(file);
-  
-        img.onload = async () => {
-          if (this.ctx) {
-            console.log(`Saving original image.`);
-            this.originalImage = img;
-          }
+        const img = await this.openImageExif(file);
+        this.originalImage = img;
 
-          const inputTensor = this.convertImageToTensor(img);
-          console.log(`Input tensor shape: ${inputTensor.shape}`, 1);
-  
-          try {
-            let message = '';
-            if ( this.imageType === "sample" ) {
-              message = `Cargando modelo...`;
-              this.fruitWeight = 150;
-            }
-            else if (numImagesOpened > 1)
-              message = `Analizando imagen ${index+1}/${numImagesOpened}...`;
-            else
-              message = 'Analizando imagen...';
+        console.groupCollapsed("Predicting image.")
 
-            if ( this.imageType === "blank" ) {
-              console.log('Blank Image, no prediction.');
-              this.totalSelectedObjects = 0;
-              this.fruitWeight = 0;
-            } else {
-              await this.showLoading(message);
-              const result = await this.predict(inputTensor);
-              if (!result || !this.predictBoxes || !this.predictScores) {
-                throw new Error('No results received from prediction.');
-              }
-              await this.readExif(file);
-            }
-            await this.drawEllipses();
-          } catch (error) {
-            console.error('Error during prediction:', error.message);
-          } finally {
-            tf.dispose([inputTensor]);
-            await this.hideLoading();
+        const inputTensor = this.convertImageToTensor(img);
+        console.log(`Input tensor shape: ${inputTensor.shape}`, 1);
+
+        let message = '';
+        if ( this.imageType === "sample" ) {
+          message = `Cargando modelo...`;
+          this.fruitWeight = 150;
+        }
+        else if (numImagesOpened > 1)
+          message = `Analizando imagen ${index+1}/${numImagesOpened}...`;
+        else
+          message = 'Analizando imagen...';
+
+        if ( this.imageType === "blank" ) {
+          console.log('Blank Image, no prediction.');
+          this.totalSelectedObjects = 0;
+          this.fruitWeight = 0;
+        } else {
+          await this.showLoading(message);
+          const result = await this.predict(inputTensor);
+          if (!result || !this.predictBoxes || !this.predictScores) {
+            throw new Error('No results received from prediction.');
           }
-        };
+        }
+        tf.dispose([inputTensor]);
       } catch (error) {
-        console.error('Error loading the image:', error.message);
+        console.error('Error processing image:', error.message);
       } finally {
+        console.groupEnd();
+        await this.drawEllipses();
+        await this.hideLoading();
   
         // If there are more files to process, wait for the user to click the "Next" or "Discard" buttons
         const nextButton = document.getElementById('nextButton')!;
@@ -812,150 +822,157 @@ export class FruitCountService {
    * @returns The total number of objects drawn.
    */
   private async drawEllipses(showMessage: boolean = true): Promise<void> {
-    if (this.predictBoxes && this.predictScores && this.ctx) {
-      const total_before = this.totalSelectedObjects;
-      console.log(`Starting to analyze ${this.totalObjects} objects.`, 2);
-      const {filteredBoxes, filteredScores} = await this.applyNonMaxSuppression();
-      const ellipses = await this.tensorToEllipses(filteredBoxes, filteredScores);
-      this.totalSelectedObjects = ellipses.length;
-      this.totalWeight = Math.round(this.fruitWeight * this.totalSelectedObjects) / 1000;
-      this.lowProbabilitySelectedObjects = ellipses.filter(ellipse => ellipse.score < 0.5).length;
-      this.mediumProbabilitySelectedObjects = ellipses.filter(ellipse => ellipse.score >= 0.5 && ellipse.score < 0.75).length;
-      this.highProbabilitySelectedObjects = ellipses.filter(ellipse => ellipse.score >= 0.75).length;
+    console.groupCollapsed('Drawing ellipses on canvas.');
+    try {
+      if (this.predictBoxes && this.predictScores && this.ctx) {
+        const total_before = this.totalSelectedObjects;
+        console.log(`Starting to analyze ${this.totalObjects} objects.`, 2);
+        const {filteredBoxes, filteredScores} = await this.applyNonMaxSuppression();
+        const ellipses = await this.tensorToEllipses(filteredBoxes, filteredScores);
+        this.totalSelectedObjects = ellipses.length;
+        this.totalWeight = Math.round(this.fruitWeight * this.totalSelectedObjects) / 1000;
+        this.lowProbabilitySelectedObjects = ellipses.filter(ellipse => ellipse.score < 0.5).length;
+        this.mediumProbabilitySelectedObjects = ellipses.filter(ellipse => ellipse.score >= 0.5 && ellipse.score < 0.75).length;
+        this.highProbabilitySelectedObjects = ellipses.filter(ellipse => ellipse.score >= 0.75).length;
 
 
-      // Restore the original image before drawing ellipses
-      if (this.originalImage instanceof HTMLImageElement && this.ctx) {
-        console.log('Restoring original image before drawing ellipses.');
-        
-        // Clear the canvas before redrawing the image
-        this.ctx.clearRect(0, 0, this.canvas!.width, this.canvas!.height);
-        
-        // Draw the original image
-        this.drawRoundedImage(this.ctx, this.originalImage);
-      } else {
-        console.error('Original image not available. Skipping image restoration.');
-      }
-  
-      // Proceed to draw the ellipses on top of the restored image
-      if ( this.imageType === "blank" ) {
-        console.log('Blank Image, no prediction.');
-        this.totalSelectedObjects = 0;
-        this.fruitWeight = 0;
-      } else {
-        console.log(`Selected ${this.totalSelectedObjects} objects.`, 2);
+        // Restore the original image before drawing ellipses
+        if (this.originalImage instanceof HTMLImageElement && this.ctx) {
+          console.log('Restoring original image before drawing ellipses.');
+          
+          // Clear the canvas before redrawing the image
+          this.ctx.clearRect(0, 0, this.canvas!.width, this.canvas!.height);
+          
+          // Draw the original image
+          this.drawRoundedImage(this.ctx, this.originalImage);
+        } else {
+          console.error('Original image not available. Skipping image restoration.');
+        }
+    
+        // Proceed to draw the ellipses on top of the restored image
+        if ( this.imageType === "blank" ) {
+          console.log('Blank Image, no prediction.');
+          this.totalSelectedObjects = 0;
+          this.fruitWeight = 0;
+        } else {
+          console.log(`Selected ${this.totalSelectedObjects} objects.`, 2);
 
-        if (showMessage) {
-          if (total_before == 0 && this.totalSelectedObjects > 0) {	
-            this.presentToast(`Se han detectado ${this.totalSelectedObjects} ${this.fruitName}.`, 'bottom');
-          } else if (this.totalSelectedObjects === 0) { 
-            this.presentToast(`No se ha detectado ningún ${this.fruitName} con esa sensibilidad.`, 'bottom');
-          } 
-          else if (this.totalSelectedObjects > total_before ) {	
-            this.presentToast(`Encontrados ${this.totalSelectedObjects - total_before} más.`, 'bottom');      
+          if (showMessage) {
+            if (total_before == 0 && this.totalSelectedObjects > 0) {	
+              this.presentToast(`Se han detectado ${this.totalSelectedObjects} ${this.fruitName}.`, 'middle');
+            } else if (this.totalSelectedObjects === 0) { 
+              this.presentToast(`No se ha detectado ningún ${this.fruitName} con esa sensibilidad.`, 'middle');
+            } 
+            else if (this.totalSelectedObjects > total_before ) {	
+              this.presentToast(`Encontrados ${this.totalSelectedObjects - total_before} más.`, 'middle');      
+            }
+            else if (this.totalSelectedObjects < total_before ) {	
+              this.presentToast(`Descartados ${total_before - this.totalSelectedObjects} entre los menos probables.`, 'middle');      
+            }
+            else {
+              if ( this._sensitivityValue != 0)
+                this.presentToast(`Ningún cambio en número de frutos.`, 'middle');
+            }
           }
-          else if (this.totalSelectedObjects < total_before ) {	
-            this.presentToast(`Descartados ${total_before - this.totalSelectedObjects} entre los menos probables.`, 'bottom');      
+
+          // Use a for...of loop to handle async await
+          for (const { centerX, centerY, radiusX, radiusY, index, score } of ellipses) {
+    
+            if (score > this.scoreThreshold) {
+              let scaledCenterX = Math.round(centerX * this.originalImage!.naturalWidth);
+              let scaledCenterY = Math.round(centerY * this.originalImage!.naturalHeight);
+              let scaledRadiusX = Math.round(radiusX * this.originalImage!.naturalWidth);
+              let scaledRadiusY = Math.round(radiusY * this.originalImage!.naturalHeight);
+    
+              scaledRadiusX = Math.abs(scaledRadiusX);
+              scaledRadiusY = Math.abs(scaledRadiusY);
+              if ( this.logLevel >= 3) 
+                console.log(`Drawing ellipse ${index} with score ${score.toFixed(2)} center=(${scaledCenterX},${scaledCenterY}) radius=(${scaledRadiusX},${scaledRadiusY})`, 3);
+          
+              this.ctx!.beginPath();
+              if (this.showCircles) {
+                // Draw black outline for ellipse
+                this.ctx!.strokeStyle = 'black';
+                this.ctx!.globalAlpha = 0.7;
+                this.ctx!.lineWidth = 0.009 * this.originalImage!.naturalWidth;
+                this.ctx!.ellipse(scaledCenterX, scaledCenterY, scaledRadiusX, scaledRadiusY, 0, 0, 2 * Math.PI);
+                this.ctx!.stroke();
+            
+                // Assign color based on score
+                let color = '';
+                if (score < 0.5) {
+                  color = '#FA6F58'; // red
+                } else if (score < 0.75) {
+                  color = '#FFFC32'; // yellow
+                } else {
+                  color = '#29E609'; // green
+                }
+            
+                // Draw colored ellipse
+                this.ctx!.strokeStyle = color;
+                this.ctx!.globalAlpha = 1.0;
+                this.ctx!.lineWidth = 0.002 * this.originalImage!.naturalWidth;
+                this.ctx!.ellipse(scaledCenterX, scaledCenterY, scaledRadiusX, scaledRadiusY, 0, 0, 2 * Math.PI);
+                this.ctx!.stroke();
+              }
+
+              if (this.showNumbers) {
+                // Add index text at the center of the ellipse
+                this.ctx!.font = `${0.015 * this.originalImage!.naturalWidth}px Arial`; // Set font size relative to image size
+                this.ctx!.fillStyle = '#EEEEEE'; // Set text color
+                this.ctx!.textAlign = 'center'; // Center the text horizontally
+                this.ctx!.textBaseline = 'middle'; // Center the text vertically
+                this.ctx!.strokeStyle = '#222222'; // Set outline color
+                this.ctx!.lineWidth = 0.003 * this.originalImage!.naturalWidth;
+                this.ctx!.globalAlpha = 0.7;
+                this.ctx!.strokeText((index+1).toString(), scaledCenterX, scaledCenterY);
+                this.ctx!.globalAlpha = 1.00;
+                this.ctx!.fillText((index+1).toString(), scaledCenterX, scaledCenterY); // Draw the index text
+              }
+
+              
+              this.ctx!.closePath();
+
+              this.ctx!.globalAlpha = 1.00;
+            }
+          }
+        }
+
+        console.log(`Total objects drawn: ${this.totalSelectedObjects}`, 1);
+
+        // Watermarks
+        {
+          const nextButton = document.getElementById('nextButton') as HTMLButtonElement;
+          nextButton.disabled = this.imageType !== "file";
+          if ( this.imageType === "sample" ) {
+            this.drawBox('Imagen de Ejemplo', 'middle-center', 'large');
+          }
+          else if ( this.imageType === "file" ) {
+            this.drawBox(this.imageFilename, 'top-center', 'small');
+            this.isNextDisabled = false;
+          }
+
+          if ( this.imageType === "blank" ) {
+            this.drawBox(this.fruitName, 'top-center', 'large');
           }
           else {
-            if ( this._sensitivityValue != 0)
-              this.presentToast(`Ningún cambio en número de frutos.`, 'bottom');
-          }
-        }
+            this.drawBox(`${this.totalSelectedObjects}`, 'top-left', 'large');
+            if (this.totalWeight > 0)
+              this.drawBox(`${this.fruitName}: ${this.totalWeight.toLocaleString('es', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg`, 'bottom-center', 'small')
+            else
+              this.drawBox(this.fruitName, 'bottom-center', 'small');
 
-        // Use a for...of loop to handle async await
-        for (const { centerX, centerY, radiusX, radiusY, index, score } of ellipses) {
-  
-          if (score > this.scoreThreshold) {
-            let scaledCenterX = Math.round(centerX * this.originalImage!.naturalWidth);
-            let scaledCenterY = Math.round(centerY * this.originalImage!.naturalHeight);
-            let scaledRadiusX = Math.round(radiusX * this.originalImage!.naturalWidth);
-            let scaledRadiusY = Math.round(radiusY * this.originalImage!.naturalHeight);
-  
-            scaledRadiusX = Math.abs(scaledRadiusX);
-            scaledRadiusY = Math.abs(scaledRadiusY);
-            if ( this.logLevel >= 3) 
-              console.log(`Drawing ellipse ${index} with score ${score.toFixed(2)} center=(${scaledCenterX},${scaledCenterY}) radius=(${scaledRadiusX},${scaledRadiusY})`, 3);
-        
-            this.ctx!.beginPath();
-            if (this.showCircles) {
-              // Draw black outline for ellipse
-              this.ctx!.strokeStyle = 'black';
-              this.ctx!.globalAlpha = 0.7;
-              this.ctx!.lineWidth = 0.009 * this.originalImage!.naturalWidth;
-              this.ctx!.ellipse(scaledCenterX, scaledCenterY, scaledRadiusX, scaledRadiusY, 0, 0, 2 * Math.PI);
-              this.ctx!.stroke();
-          
-              // Assign color based on score
-              let color = '';
-              if (score < 0.5) {
-                color = '#FA6F58'; // red
-              } else if (score < 0.75) {
-                color = '#FFFC32'; // yellow
-              } else {
-                color = '#29E609'; // green
-              }
-          
-              // Draw colored ellipse
-              this.ctx!.strokeStyle = color;
-              this.ctx!.globalAlpha = 1.0;
-              this.ctx!.lineWidth = 0.002 * this.originalImage!.naturalWidth;
-              this.ctx!.ellipse(scaledCenterX, scaledCenterY, scaledRadiusX, scaledRadiusY, 0, 0, 2 * Math.PI);
-              this.ctx!.stroke();
-            }
-
-            if (this.showNumbers) {
-              // Add index text at the center of the ellipse
-              this.ctx!.font = `${0.015 * this.originalImage!.naturalWidth}px Arial`; // Set font size relative to image size
-              this.ctx!.fillStyle = '#EEEEEE'; // Set text color
-              this.ctx!.textAlign = 'center'; // Center the text horizontally
-              this.ctx!.textBaseline = 'middle'; // Center the text vertically
-              this.ctx!.strokeStyle = '#222222'; // Set outline color
-              this.ctx!.lineWidth = 0.003 * this.originalImage!.naturalWidth;
-              this.ctx!.globalAlpha = 0.7;
-              this.ctx!.strokeText((index+1).toString(), scaledCenterX, scaledCenterY);
-              this.ctx!.globalAlpha = 1.00;
-              this.ctx!.fillText((index+1).toString(), scaledCenterX, scaledCenterY); // Draw the index text
-            }
-
-            
-            this.ctx!.closePath();
-
-            this.ctx!.globalAlpha = 1.00;
+            this.drawBox(`${this.imageDate}`, 'top-right', 'small');
+            this.drawBox(`GPS: ${this.imageLocation}`, 'bottom-right', 'small');
+            this.drawBox(this.deviceModel, 'bottom-left', 'small');
           }
         }
       }
-
-      console.log(`Total objects drawn: ${this.totalSelectedObjects}`, 1);
-
-      // Watermarks
-      {
-        const nextButton = document.getElementById('nextButton') as HTMLButtonElement;
-        nextButton.disabled = this.imageType !== "file";
-        if ( this.imageType === "sample" ) {
-          this.drawBox('Imagen de Ejemplo', 'middle-center', 'large');
-        }
-        else if ( this.imageType === "file" ) {
-          this.drawBox(this.imageFilename, 'top-center', 'small');
-          this.isNextDisabled = false;
-        }
-
-        if ( this.imageType === "blank" ) {
-          this.drawBox(this.fruitName, 'top-center', 'medium');
-        }
-        else {
-          this.drawBox(`${this.totalSelectedObjects}`, 'top-left', 'large');
-          if (this.totalWeight > 0)
-            this.drawBox(`${this.fruitName}: ${this.totalWeight.toLocaleString('es', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg`, 'bottom-center', 'small')
-          else
-            this.drawBox(this.fruitName, 'bottom-center', 'small');
-
-          this.drawBox(`${this.imageDate}`, 'top-right', 'small');
-          this.drawBox(`GPS: ${this.imageLocation}`, 'bottom-right', 'small');
-          this.drawBox(this.deviceModel, 'bottom-left', 'small');
-        }
-      }
-    }    
+    } catch (error) {
+      console.error('Error drawing ellipses:', error.message);
+    } finally {   
+      console.groupEnd();
+    }
     return;
   }
   
@@ -1088,8 +1105,8 @@ export class FruitCountService {
     this.ctx!.textBaseline = 'middle'; // Centrar el texto verticalmente
   
     // Añadir el texto dentro del cuadro
-    const textX = boxX + boxWidth / 2; // Centro del cuadro en X
-    const textY = boxY + boxHeight / 2; // Centro del cuadro en Y
+    const textX = Math.floor(boxX + boxWidth / 2); // Centro del cuadro en X
+    const textY = Math.floor(boxY + boxHeight / 2); // Centro del cuadro en Y
 
     this.ctx!.strokeStyle = '#222222'; // Set outline color
     this.ctx!.lineWidth = 0.003 * this.originalImage!.naturalWidth;
@@ -1098,8 +1115,7 @@ export class FruitCountService {
     this.ctx!.globalAlpha = 1.00;
     this.ctx!.fillText(text, textX, textY);
 
-
-    console.log(`Drawn box with text: "${text}" at position ${position} (${boxX},${boxY})`, 3);
+    console.log(`Drawn box with text: "${text}" at position ${position} (${boxX.toFixed(0)},${boxY.toFixed(0)})`, 3);
   }
   
   
@@ -1456,11 +1472,22 @@ private blobToBase64(blob: Blob): Promise<string> {
     const toastOptions: any = {
         message: message,
         position: position,
-        cssClass: 'custom-toast'
+        cssClass: 'custom-toast',
+        duration: 4000
     };
 
+    console.log(`Presented Toast: ${message}`);
     const toast = await this.toastController.create(toastOptions);
     await toast.present();
+
+    // Espera 5 segundos y luego fuerza el cierre del Toast (si aún está visible)
+    try {
+      setTimeout(async () => {
+        await toast.dismiss();
+      }, 5000);
+    } catch {
+      console.log("Toast closed.")
+    }
   }
 
 
@@ -1470,9 +1497,11 @@ private blobToBase64(blob: Blob): Promise<string> {
       cssClass: 'custom-alert',
       header: header,
       message: message,
+      backdropDismiss: false,
       buttons: [{ cssClass: 'alert-button-confirm', text: 'Ok', role: 'confirm' }],
     });
   
+    console.log(`Presented Alert: ${message}`);
     await alert.present();
     
     // Return a promise that resolves when the alert is dismissed
@@ -1621,6 +1650,7 @@ private blobToBase64(blob: Blob): Promise<string> {
       cssClass: 'custom-alert',
       header: 'Ingrese el peso medio de 1 fruto (en gramos)',
       message: '', // Mensaje inicial vacío
+      backdropDismiss: false,
       inputs: [
         {
           name: 'numero',

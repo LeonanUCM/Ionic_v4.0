@@ -21,9 +21,12 @@
       <ion-icon name="trash-outline"></ion-icon>
     </ion-fab-button>
     <div class="empty-space"></div>
-    <ion-fab-button id="nextButton" [disabled]="fruitCountService.isNextDisabled" [ngClass]="{ 'button_disable': fruitCountService.isNextDisabled }">
+    <ion-fab-button id="nextButton" 
+                    [disabled]="fruitCountService.isNextDisabled" 
+                    [ngClass]="{ 'button_disable': fruitCountService.isNextDisabled }">
       <ion-icon name="cloud-upload"></ion-icon>
-      <ion-badge *ngIf="(fruitCountService.badgePendingRequests$ | async) as badgeValue" class="badge-position">
+      <ion-badge *ngIf="(fruitCountService.badgePendingRequests$ | async) as badgeValue" 
+                  class="badge-position">
         <ng-container *ngIf="badgeValue > 0">{{ badgeValue }}</ng-container>
       </ion-badge>
     </ion-fab-button>
@@ -31,14 +34,18 @@
   </ion-fab>
   <ion-fab class="fab-2">
     <div class="empty-space"></div>
-    <ion-fab-button [disabled]="fruitCountService.isDecreaseDisabled" [ngClass]="{ 'button_disable': fruitCountService.isDecreaseDisabled }" >
-      <ion-icon name="ellipsis-horizontal-outline" (mousedown)="fruitCountService.decreaseSensitivity()"></ion-icon>
+    <ion-fab-button [disabled]="fruitCountService.isDecreaseDisabled" 
+                    [ngClass]="{ 'button_disable': fruitCountService.isDecreaseDisabled }" 
+                    (click)="fruitCountService.decreaseSensitivity()">
+      <ion-icon name="ellipsis-horizontal-outline"></ion-icon>
     </ion-fab-button>
     <ion-fab-button class="non-clickable-button">
       <span>{{ fruitCountService.sensitivityText }}</span>
     </ion-fab-button>
-    <ion-fab-button [disabled]="fruitCountService.isIncreaseDisabled" [ngClass]="{ 'button_disable': fruitCountService.isIncreaseDisabled }" >
-      <ion-icon name="apps-outline" (mousedown)="fruitCountService.increaseSensitivity()"></ion-icon>
+    <ion-fab-button [disabled]="fruitCountService.isIncreaseDisabled" 
+                    [ngClass]="{ 'button_disable': fruitCountService.isIncreaseDisabled }" 
+                    (click)="fruitCountService.increaseSensitivity()">
+      <ion-icon name="apps-outline"></ion-icon>
     </ion-fab-button>
     <div class="empty-space"></div>
     <ion-fab-button
@@ -58,6 +65,8 @@
       <ion-icon class="button-eye-circles"></ion-icon>
     </ion-fab-button>
     <div class="empty-space"></div>
-    <ion-fab-button (click)="fruitCountService.shareCanvasImage('social')"><ion-icon name="share-social-outline"></ion-icon></ion-fab-button>
+    <ion-fab-button (click)="fruitCountService.shareCanvasImage('social')">
+      <ion-icon name="share-social-outline"></ion-icon>
+    </ion-fab-button>
   </ion-fab>
 </div>

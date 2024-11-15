@@ -217,6 +217,7 @@ ion-title {
   max-width: 80%;
   min-height: 30%;
   max-height: 45%;
+  aspect-ratio: 1 / 1; /* Keep it square */
 }
 
 @media (orientation: landscape) {

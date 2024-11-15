@@ -25,11 +25,6 @@
     z-index: 1000; /* Asegura que esté por encima del contenido */
 }
 
-/* Reactivar los eventos de puntero para los FABs */
-.fab-overlay ion-fab {
-    pointer-events: auto;
-}
-
 /* Estilos para fab-1 y fab-2 en orientación vertical */
 .fab-1,
 .fab-2 {
@@ -58,7 +53,6 @@
     color: white;
     font-size: 3vmin; /* Adjusts the size of the text */
     display: inline-block;
-    animation: grow-shrink 0.4s ease-in-out;
   }
 
 /* Estilos para orientación horizontal (landscape) */
@@ -88,7 +82,6 @@ ion-icon {
     min-height: 70%;
     max-height: 70%;
 }
-
 
 ion-fab-button {
     opacity: 0.9; /* Set opacity to 1 to remove transparency */

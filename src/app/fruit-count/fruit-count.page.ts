@@ -12,8 +12,6 @@ import { Router } from '@angular/router';
 })
 
 export class FruitCountPage implements OnInit, AfterViewInit {
-  public showAnimationPendingRequests: boolean = false;
-  
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -50,21 +48,9 @@ export class FruitCountPage implements OnInit, AfterViewInit {
         this.getFruitLocalName(params['fruit_type'])
       );
     });
-
-    // Suscribirse a los cambios de badgeValue$ para actualizar el valor y activar la animación
-    this.fruitCountService.badgePendingRequests$.subscribe((value) => {
-      this.triggerAnimationPendingRequests(); // Activar animación
-    });    
   }
 
-  // Método para activar la animación
-  triggerAnimationPendingRequests() {
-    console.log('triggerAnimationPendingRequests called');
-    this.showAnimationPendingRequests = false;
-    setTimeout(() => {
-      this.showAnimationPendingRequests = true;
-    }, 0);
-  }  
+
 
   //////////////////////////////////////////////////////////////////////////////////////////////
 

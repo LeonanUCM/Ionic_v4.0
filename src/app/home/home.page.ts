@@ -53,6 +53,7 @@ export class HomePage {
    */
   ngAfterViewInit() {
     console.log('ngAfterViewInit called');
+    this.router.navigate(['/home'], { replaceUrl: true }); //avoid go back to login without click the icon
   }
   
   openFruitPage(fruitType: string, fruitSubType: string) {
