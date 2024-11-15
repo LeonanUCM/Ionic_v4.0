@@ -362,7 +362,7 @@ export class FruitCountService {
   
   // Show loading with a customizable message and minimum duration
   private async showLoading(message: string = 'Please wait...', minDuration: number = 300) {
-    console.error(`Showing loading spinner with message: ${message}`);
+    console.log(`Showing loading spinner with message: ${message}`);
     // Avoid creating multiple loading controllers
     if (this.loadingInstance) {
       return;
@@ -1694,7 +1694,7 @@ private blobToBase64(blob: Blob): Promise<string> {
  * @param type - Tipo de imagen: 'file', 'sample' o 'blank'.
  */
 public async handleImageUpload(input: any, type: 'file' | 'sample' | 'blank' = 'file') {
-  console.error("Image upload triggered.");
+  console.warn("Image upload triggered.");
 
   try {
     this.imageType = type;

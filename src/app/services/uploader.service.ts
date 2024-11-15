@@ -23,7 +23,7 @@ interface UploadRequest {
 export class UploaderService {
   private requestQueue: UploadRequest[] = [];
   private MAX_RETRIES: number = 5;
-  private retryIntervalInSeconds: number = 10;
+  private retryIntervalInSeconds: number = 90;
   private lastId: number = 0;
 
   private badgePendingRequestsSubject: BehaviorSubject<number> = new BehaviorSubject<number>(0);
@@ -68,7 +68,7 @@ export class UploaderService {
   public async enqueueNewRequest(requestData: any): Promise<void> {
     console.warn(`Enqueuing new request: result_UUID ${requestData.result_UUID}.`);
     if ( this.hasRequestId(requestData.result_UUID)) {
-      console.error(`Enqueuing new request: result_UUID ${requestData.result_UUID} already exists in the queue. Ignoring.`);
+      console.warn(`Enqueuing new request: Already existing id. Aborting.`);
     }
     else {
       try {
@@ -109,74 +109,85 @@ export class UploaderService {
   public async uploadPendingRequests(source: 'new' | 'timer'): Promise<void> {
     let requestsToProcess: UploadRequest[] = [];
 
-    if (source === 'new') {
-      console.log('---Trying to send new request...');
-      // Obtener solo el request más nuevo
-      const latestRequest = this.getLatestRequest();
-      if (latestRequest) {
-        requestsToProcess.push(latestRequest);
-      }
-    } else if (source === 'timer') {
-      // Obtener todos los requests pendientes
-      requestsToProcess = [...this.requestQueue];
-    }
+    const { connected } = await Network.getStatus();
 
-    if (requestsToProcess.length === 0) {
-      console.log('No requests to process.');
-      return;
-    }
-    else if (source === 'timer') {
-      console.log('---Trying to send old requests (timer)...');
-      await this.notifyUserStart();
-    }
-
-
-    let successCount = 0;
-    let failureCount = 0;
-
-    for (const request of requestsToProcess) {
-      // [R6] Verificar el estado antes de procesar
-      if (request.status !== 'pending' && request.status !== 'failed') {
-        console.log(`---Skipping request ID: ${request.id} with status: ${request.status}`);
-        continue;
-      }
-
-      // Marcar como en proceso
-      request.status = 'in-progress';
-      await this.storageService.update(request, "results");
-      console.log(`---Processing request ID: ${request.id}`);
-
-      try {
-        // Realizar las tres llamadas a la API
-        await this.performApiCalls(request.data);
-        // Si todo salió bien, marcar como completado y eliminar del storage y la cola
-        request.status = 'completed';
-        await this.storageService.remove(request.id, "results");
-        this.removeFromQueue(request.id);
-        successCount++;
-        console.warn(`---Successfully uploaded request ID: ${request.id}`);
-      } catch (error) {
-        console.error(`---Error uploading request ID: ${request.id}:`, error);
-        // Manejar reintentos
-        request.retries += 1;
-        if (request.retries >= this.MAX_RETRIES) {
-          // [R7] Excedió el número de reintentos, eliminar y loguear error
-          request.status = 'failed';
-          await this.storageService.remove(request.id, "results");
-          this.removeFromQueue(request.id);
-          failureCount++;
-          console.error(`---Request ID: ${request.id} failed after ${this.MAX_RETRIES} retries. Removing from queue.`);
-        } else {
-          // Actualizar en storage con el nuevo contador de reintentos
-          request.status = 'pending';
-          await this.storageService.update(request, "results");
-          console.warn(`---Request ID: ${request.id} failed. Retry attempt ${request.retries}/${this.MAX_RETRIES}.`);
+    if  ( !connected ) {
+      console.log('---No internet connection. Skipping upload.');
+    } else {
+      console.log('---Found internet. Making sure user is able to send requests.');
+      if ( ! this.userService.refreshToken() ) {
+        console.error('---User not able to send requests. Aborting.');
+        return;
+      } else {
+        if (source === 'new') {
+          console.log('---Trying to send new request...');
+          // Obtener solo el request más nuevo
+          const latestRequest = this.getLatestRequest();
+          if (latestRequest) {
+            requestsToProcess.push(latestRequest);
+          }
+        } else if (source === 'timer') {
+          // Obtener todos los requests pendientes
+          requestsToProcess = [...this.requestQueue];
         }
-      }
-    }
 
-    if (source === 'timer') {
-      await this.notifyUserEnd(successCount, failureCount);
+        if (requestsToProcess.length === 0) {
+          console.log('No requests to process.');
+          return;
+        }
+        else if (source === 'timer') {
+          console.log('---Trying to send old requests (timer)...');
+          await this.notifyUserStart();
+        }
+
+
+        let successCount = 0;
+        let failureCount = 0;
+
+        for (const request of requestsToProcess) {
+          // [R6] Verificar el estado antes de procesar
+          if (request.status !== 'pending' && request.status !== 'failed') {
+            console.log(`---Skipping request ID: ${request.id} with status: ${request.status}`);
+            continue;
+          }
+
+          // Marcar como en proceso
+          request.status = 'in-progress';
+          await this.storageService.update(request, "results");
+          console.log(`---Processing request ID: ${request.id}`);
+
+          try {
+            // Realizar las tres llamadas a la API
+            await this.performApiCalls(request.data);
+            // Si todo salió bien, marcar como completado y eliminar del storage y la cola
+            request.status = 'completed';
+            await this.storageService.remove(request.id, "results");
+            this.removeFromQueue(request.id);
+            successCount++;
+            console.warn(`---Successfully uploaded request ID: ${request.id}`);
+          } catch (error) {
+            console.error(`---Error uploading request ID: ${request.id}:`, error);
+            // Manejar reintentos
+            request.retries += 1;
+            if (request.retries >= this.MAX_RETRIES) {
+              // [R7] Excedió el número de reintentos, eliminar y loguear error
+              request.status = 'failed';
+              await this.storageService.remove(request.id, "results");
+              this.removeFromQueue(request.id);
+              failureCount++;
+              console.error(`---Request ID: ${request.id} failed after ${this.MAX_RETRIES} retries. Removing from queue.`);
+            } else {
+              // Actualizar en storage con el nuevo contador de reintentos
+              request.status = 'pending';
+              await this.storageService.update(request, "results");
+              console.warn(`---Request ID: ${request.id} failed. Retry attempt ${request.retries}/${this.MAX_RETRIES}.`);
+            }
+          }
+        }
+
+        if (source === 'timer')
+          await this.notifyUserEnd(successCount, failureCount);
+      }
     }
   }
 
@@ -265,7 +276,7 @@ export class UploaderService {
       if (total === 0) return;
 
       const message = `Envío de ${success} análisis a la nube completado. ${success}.`
-      console.error(`${failure} requests failled.`);
+      console.log(`${failure} requests failled.`);
 
       const alert = await this.toastController.create({
         message: message,
