@@ -1361,7 +1361,7 @@ private blobToBase64(blob: Blob): Promise<string> {
       cssClass: 'custom-alert',
       header: header,
       message: message,
-      //backdropDismiss: false,
+      backdropDismiss: false, // previene cerrar el alert haciendo clic fuera de él
       buttons: [{ cssClass: 'alert-button-confirm', text: 'Ok', role: 'confirm' }],
     });
   
