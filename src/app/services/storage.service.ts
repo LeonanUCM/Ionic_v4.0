@@ -4,102 +4,108 @@ import { Storage } from '@ionic/storage-angular';
 @Injectable({
   providedIn: 'root',
 })
-
-/**
- * Injectable class to manage a local NoSQL Key-Value database.
- *
- * @property {Storage | null} _storage - Instance of the database.
- */
 export class StorageService {
-  private _storage: Storage | null = null;
-  private storageReady: Promise<void>;
- 
+  private storageInitialized: Promise<void>;
+
   constructor(private storage: Storage) {
-    this.storageReady = this.init();
+    this.storageInitialized = this.initStorage();
   }
 
   /**
-   * Initializes the local database.
+   * Inicializa el almacenamiento.
    */
-  private async init(): Promise<void> {
-    this._storage = await this.storage.create();
+  private async initStorage(): Promise<void> {
+    console.debug('Initializing storage...');
+    await this.storage.create();
+    console.debug('Storage initialized.');
   }
 
   /**
-   * Saves an item in the database.
-   *
-   * @param {string} key - Key of the item to store.
-   * @param {any} value - Content to store.
+   * Guarda un item individual en el storage.
+   * @param item El item a guardar.
    */
-  public async set(key: string, value: any): Promise<void> {
-    await this.storageReady;
-    await this._storage?.set(key, value);
+  public async save(item: any, type: string = ""): Promise<void> {
+    await this.storageInitialized;
+    const key = `${type}_${item.id}`;
+    console.debug(`Saving item with key: ${key}, item:`, item);
+    await this.storage.set(key, item);
+    console.debug(`Item with key: ${key} saved successfully.`);
   }
 
   /**
-   * Retrieves the content of an item.
-   *
-   * @param {string} key - Key of the item to retrieve.
-   * @returns The content stored for the given key.
+   * Obtiene un item individual del storage por ID.
+   * @param id El ID del item a obtener.
+   * @returns El StorageItem o null si no se encuentra.
    */
-  public async get(key: string): Promise<any> {
-    await this.storageReady;
-    return await this._storage?.get(key);
+  public async get(id: number, type: string = ""): Promise<any | null> {
+    await this.storageInitialized;
+    const key = `${type}_${id}`;
+    console.debug(`Retrieving item with key: ${key}`);
+    const item = await this.storage.get(key);
+    if (item) {
+      console.debug(`Item retrieved successfully:`, item);
+    } else {
+      console.debug(`Item with key: ${key} not found.`);
+    }
+    return item || null;
   }
 
   /**
-   * Removes an item from the database.
-   *
-   * @param {string} key - Key of the item to remove.
+   * Actualiza un item existente en el storage.
+   * @param item El item a actualizar.
    */
-  public async remove(key: string): Promise<void> {
-    await this.storageReady;
-    await this._storage?.remove(key);
+  public async update(item: any, type: string = ""): Promise<void> {
+    await this.storageInitialized;
+    const key = `${type}_${item.id}`;
+    console.debug(`Updating item with key: ${key}, new item:`, item);
+    await this.storage.set(key, item);
+    console.debug(`Item with key: ${key} updated successfully.`);
+  }
+
+  /**
+   * Elimina un item del storage por ID.
+   * @param id El ID del item a eliminar.
+   */
+  public async remove(id: number, type: string = ""): Promise<void> {
+    await this.storageInitialized;
+    const key = `${type}_${id}`;
+    console.debug(`Removing item with key: ${key}`);
+    await this.storage.remove(key);
+    console.debug(`Item with key: ${key} removed successfully.`);
+  }
+
+  /**
+   * Obtiene todos los items del storage.
+   * @returns Una lista de StorageItem.
+   */
+  public async getAll(type: string = ""): Promise<any[]> {
+    await this.storageInitialized;
+    console.debug(`Retrieving all items for type: ${type}`);
+    const keys = await this.storage.keys();
+    const itemKeys = keys.filter(key => key.startsWith(`${type}_`));
+    console.debug(`Filtered keys for type: ${type}`, itemKeys);
+
+    const items: any[] = [];
+    for (const key of itemKeys) {
+      const item = await this.storage.get(key);
+      if (item) {
+        console.debug(`Item retrieved for key: ${key}`, item);
+        items.push(item);
+      } else {
+        console.debug(`No item found for key: ${key}`);
+      }
+    }
+
+    console.debug(`All items retrieved for type: ${type}`, items);
+    return items;
   }
 
   /**
    * Clears the entire database.
    */
-  public async clear(): Promise<void> {
-    await this.storageReady;
-    await this._storage?.clear();
+  public async clearStorage(): Promise<void> {
+    await this.storageInitialized;
+    await this.storage.clear();
+    console.warn(`Storage cleared.`);
   }
-
-  /**
-   * Retrieves all the keys of items stored in the database.
-   *
-   * @returns An array of all keys stored in the database.
-   */
-  public async keys(): Promise<string[]> {
-    await this.storageReady;
-    return await this._storage?.keys() || [];
-  }
-
-  /**
-   * Retrieves the number of items stored in the database.
-   *
-   * @returns The number of items stored in the database.
-   */
-  public async length(): Promise<number> {
-    await this.storageReady;
-    return await this._storage?.length() || 0;
-  }
-
-  /**
-   * Retrieves the number of pending items stored in the database,
-   * excluding items with the key 'login_credentials'.
-   *
-   * @returns The number of pending items in the database.
-   */
-  public async numberPendingRequests(): Promise<number> {
-    await this.storageReady;
-
-    // Obtén todas las claves almacenadas
-    const keys = await this._storage?.keys() || [];
-
-    // Filtra las claves que no son 'login_credentials' y cuenta el resultado
-    const pendingKeys = keys.filter(key => key !== 'login_credentials');
-    return pendingKeys.length;
-  }
-
 }

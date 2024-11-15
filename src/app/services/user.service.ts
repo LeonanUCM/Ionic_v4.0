@@ -1,5 +1,4 @@
 import { User } from '../models/user';
-import { Session } from '../models/session';
 import { environment } from 'src/environments/environment';
 import { CapacitorHttp, HttpResponse } from '@capacitor/core';
 import { Injectable } from '@angular/core';
@@ -24,32 +23,29 @@ export class UserService {
 
   constructor(private router: Router, 
               private storageService: StorageService) {
-    this.readSessionData();
+    this.initializeSessionData();
   }
 
-  // Método separado para inicializar la sesión de forma asíncrona
-  private async readSessionData(): Promise<void> {
-    this.user.session_data = await this.getSessionData();
 
-    if (this.user.session_data === null) {
-      // Si sessionRead es null, significa que hubo un error en getSessionData
-      console.log('Failed to initialize session data');
-    }
-  } 
-
-  public async getSessionData(): Promise<Session | null> {
+  public async initializeSessionData(): Promise<void> {
     try {
-      console.log('Reading session data');
-      const sessionData = await this.storageService.get('login_credentials');
-      this.user.session_data = sessionData;
-      this.userLoggedIn = true;
-      return sessionData;
+      console.log('Reading session data from StorageService');
+      const sessionData = await this.storageService.get(0, 'login_credentials');
+  
+      if (sessionData) {
+        this.user.session_data = sessionData;
+        this.userLoggedIn = true;
+        console.log('Session data initialized successfully');
+      } else {
+        console.log('Session data is null. Redirecting to login.');
+        this.router.navigate(['/']); // Navegar a la página de inicio de sesión
+      }
     } catch (error) {
       console.error('Error reading session data:', error.message);
       this.router.navigate(['/']); // Navegar a la página de inicio de sesión en caso de error
-      return null;
     }
-  }  
+  }
+    
   
   /**
    * Attempts to log in a user.
@@ -58,7 +54,7 @@ export class UserService {
    * @param {string} password - The user's password.
    * @returns A string indicating the result of the login attempt.
    */
-  public async login(email: string, password: string): Promise<string | null> {
+  public async logIn(email: string, password: string): Promise<string | null> {
     const options = {
       url: `${environment.api_url}/auth/sign-in`,
       headers: { 'Content-Type': 'application/json' },
@@ -84,6 +80,7 @@ export class UserService {
         }
 
         this.user.session_data = {
+          id: 0,
           userId: userData.data.session_data.userId,
           token: userData.data.session_data.token,
           refreshToken: userData.data.session_data.refreshToken,
@@ -92,8 +89,8 @@ export class UserService {
           userEmail: userData.data.email,
         };
         console.log('User ID:', this.user.session_data.userId);
-        this.logExpirationTimeToken(parseInt(this.user.session_data.expireIn, 10));
-        await this.storageService.set('login_credentials', this.user.session_data);
+        console.log(`Token will expire in ${this.getExpirationTimeTokenMinutes().toFixed(2)} minutes.`);
+        await this.storageService.save(this.user.session_data, 'login_credentials');
 
         console.log('Login ok');
         return 'already_registered_user';
@@ -131,7 +128,7 @@ export class UserService {
       console.log('Response:', response);
       if (response.status >= 200 && response.status <= 401) {
         console.log('Session ended successfully');
-        await this.storageService.remove('login_credentials');
+        await this.storageService.remove(0, 'login_credentials');
         console.log('Session data removed, returning to login page.');
         this.userLoggedIn = false;
         this.router.navigate(['/']);
@@ -150,109 +147,17 @@ export class UserService {
     }
   }
 
-  /**
-   * Uploads analysis data to the backend.
-   *
-   * @param {any} resultData - JSON containing all the data of an analysis.
-   * @returns True if the analysis data was saved successfully, false otherwise.
-   */
-  public async uploadResultData(resultData: any): Promise<boolean> {
-    const options = {
-      url: `${environment.api_url}/photo/data`,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: this.user.session_data.token,
-      },
-      data: [
-        {
-          fruit: resultData.fruit,
-          location: resultData.location,
-          image_date: resultData.image_date,
-          weight: resultData.weight,
-          quantities: resultData.quantities,
-          pre_value: resultData.pre_value,
-          type: resultData.photo_type,
-          small_fruits: resultData.small_fruits,
-          medium_fruits: resultData.medium_fruits,
-          big_fruits: resultData.big_fruits,
-          original_url: resultData.url_original_image,
-          url: resultData.url_result_image,
-          corrected_quantities: resultData.corrected_fruit_total_quantity,
-          corrected_big_fruits: resultData.corrected_fruit_big_quantity,
-          corrected_medium_fruits: resultData.corrected_fruit_medium_quantity,
-          corrected_small_fruits: resultData.corrected_fruit_small_quantity,
-          mode: resultData.mode
-        },
-      ],
-    };
-
-    try {
-      console.log(`Sending data request:`, resultData.result_UUID);
-      const response: HttpResponse = await CapacitorHttp.post(options);
-      if (response.status >= 200 && response.status < 300) {
-        console.log('Result data saved successfully');
-        return true;
-      } else {
-        console.warn('Result data could not be saved:', response);
-        return false;
-      }
-    } catch (error) {
-      console.error('Error in uploadResultData method:', error.message);
-      return false;
-    }
-  }
-
-  /**
-   * Uploads the result or original image of an analysis to S3.
-   *
-   * @param {any} resultData - JSON containing all the data of an analysis.
-   * @param {boolean} isResultImage - Indicates if the image to be uploaded is the original (false) or the result image (true).
-   * @returns True if the image was uploaded successfully, false otherwise.
-   */
-  public async uploadImage(resultData: any, isResultImage: boolean): Promise<boolean> {
-    const imageType = isResultImage ? 'result' : 'original';
-    console.log(`uploadImage: Uploading ${imageType} image`);
-
-    const options = {
-      url: `${environment.api_url}/photo`,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: this.user.session_data.token,
-      },
-      data: {
-        name: `${resultData.result_UUID}-${imageType}`,
-        file: isResultImage ? resultData.result_image : resultData.original_image,
-        result: isResultImage,
-      },
-    };
-
-    try {
-      console.log(`uploadImage: Sending ${imageType} image upload request:`, options.data.name);
-      const response: HttpResponse = await CapacitorHttp.post(options);
-      if (response.status >= 200 && response.status < 300) {
-        console.log(`uploadImage: ${imageType.charAt(0).toUpperCase() + imageType.slice(1)} image uploaded successfully`);
-        return true;
-      } else {
-        console.warn(`uploadImage: ${imageType.charAt(0).toUpperCase() + imageType.slice(1)} image could not be uploaded`);
-      }
-    } catch (error) {
-      console.error('uploadImage: Error in request on uploadImage method :', error.message);
-    }
-    return false;
-  }
-
-
-
+  
   /**
    * Refreshes the token of the currently logged-in user.
    *
    * @returns True if the token was refreshed successfully, false otherwise.
    */
   public async refreshToken(): Promise<boolean> {
-    console.group("Refresh token.")
+    console.groupCollapsed("Refresh token.")
 
     try {
-      this.readSessionData();
+      this.initializeSessionData();
     
       if (this.user.session_data === null || this.user.session_data === undefined) {
         console.log('Cannot refresh token. No session data found. Must login again.');
@@ -280,6 +185,7 @@ export class UserService {
         if (response.status >= 200 && response.status < 300) {
           const resultData = response.data.data;
           this.user.session_data = {
+            id: 0,
             token: resultData.token,
             refreshToken: resultData.refresh_token,
             userId: resultData.user_id,
@@ -288,8 +194,8 @@ export class UserService {
             userEmail: this.user.session_data.userEmail,
           };
           console.log('Token refreshed successfully');
-          this.logExpirationTimeToken(parseInt(this.user.session_data.expireIn, 10));
-          await this.storageService.set('login_credentials', this.user.session_data);
+          console.log(`Token will expire in ${this.getExpirationTimeTokenMinutes().toFixed(2)} minutes.`);
+          await this.storageService.save(this.user.session_data, 'login_credentials');
           console.log('Session data saved.');
           return true;
         } else {
@@ -313,16 +219,18 @@ export class UserService {
     }
   }
 
-  private logExpirationTimeToken(expireIn: number) {
+  public getToken(): string {
+    return this.user.session_data.token;
+  }
+
+
+  private getExpirationTimeTokenMinutes() {
     // Calculate expiration time in minutes
+    const expireIn = parseInt(this.user.session_data.expireIn, 10);
     const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds
     const timeUntilExpire = expireIn - currentTime;
 
-    if (timeUntilExpire > 0) {
-      const expireInMinutes = timeUntilExpire / 60;
-      console.log(`Token will expire in ${expireInMinutes.toFixed(2)} minutes.`);
-    } else {
-      console.warn('Token has already expired.');
-    }
-  }    
+    return (timeUntilExpire > 0) ? timeUntilExpire / 60 : 0;
+  }  
+
 }

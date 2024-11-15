@@ -8,6 +8,7 @@
  * @property {string} expireIn - Momento de tiempo en el que expira la sesión.
  */
 export class Session {
+    id: number = 0;
     token: string;
     refreshToken: string;
     status: string;

@@ -73,7 +73,7 @@ export class AppComponent {
   cerrarSesion() {
     this.currentPage = "Análisis de imágen";
     this.userService.logOff();
-    this.storageService.remove('login_credentials');
+    this.storageService.remove(0, 'login_credentials');
   }
   toggleDarkTheme(shouldAdd: boolean) {
     document.body.classList.toggle('dark', shouldAdd);

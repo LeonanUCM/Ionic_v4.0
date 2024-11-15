@@ -1,7 +1,6 @@
 import { Component } from '@angular/core';
 import { Router } from '@angular/router';
 import { AlertController, LoadingController } from '@ionic/angular';
-import { StorageService } from 'src/app/services/storage.service';
 import { UserService } from 'src/app/services/user.service';
 import { Network } from '@capacitor/network';
 import { environment } from 'src/environments/environment';
@@ -23,7 +22,6 @@ export class LoginPage {
   public user_email: string = '';
   public user_password: string = '';
   public showPassword: boolean = false;
-  public remind_me: boolean = true;
   public version: string = environment.version;
 
   constructor(
@@ -31,7 +29,6 @@ export class LoginPage {
     private router: Router,
     private alertController: AlertController,
     private loadingController: LoadingController,
-    private storageService: StorageService
   ) {}
 
   /**
@@ -98,10 +95,7 @@ export class LoginPage {
       });
       await alert.present();
     } else {
-      if (this.remind_me) {
-        this.storeCredentials();
-      }
-      await this.login();
+      await this.logIn();
     }
   }
 
@@ -109,7 +103,7 @@ export class LoginPage {
    * Initiates the login process by calling the UserService.
    * Handles different login scenarios and navigates accordingly.
    */
-  async login() {
+  async logIn() {
     const loading = await this.loadingController.create({
       cssClass: 'custom-loading',
       message: 'Iniciando sesion...',
@@ -117,7 +111,7 @@ export class LoginPage {
     await loading.present();
 
     try {
-      const response = await this.userService.login(this.user_email, this.user_password);
+      const response = await this.userService.logIn(this.user_email, this.user_password);
       switch (response) {
         case 'first_time_user':
           await this.router.navigate(['/new-password']);
@@ -174,17 +168,6 @@ export class LoginPage {
   clearFields() {
     this.user_email = '';
     this.user_password = '';
-  }
-
-  /**
-   * Stores user credentials locally under the key "login_credentials".
-   */
-  storeCredentials() {
-    const credentials = JSON.stringify({
-      email: this.user_email,
-      password: this.user_password,
-    });
-    this.storageService.set('login_credentials', credentials);
   }
 
   /**

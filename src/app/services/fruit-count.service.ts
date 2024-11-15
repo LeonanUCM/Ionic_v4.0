@@ -1,4 +1,3 @@
-import { StorageService } from '../services/storage.service';
 import { UploaderService } from '../services/uploader.service';
 import { ResultData } from 'src/app/models/resultData';
 import { Injectable } from '@angular/core';
@@ -47,6 +46,8 @@ export class FruitCountService {
   private predictScores: tf.Tensor | undefined;
   private _fruitName: string = '';
   private imageFilename: string = '';
+  private imageId: any = '';
+  private correctedQuantity: number = 0;
   private imageType: "file" | "sample" | "blank" = "sample";
   private imageLocation = "";
   private imageDate = "";
@@ -62,7 +63,6 @@ export class FruitCountService {
   constructor(
     private loadingController: LoadingController, 
     private toastController: ToastController,
-    private storageService: StorageService,
     private uploaderService: UploaderService,
     private alertController: AlertController
   ) 
@@ -142,10 +142,7 @@ export class FruitCountService {
   //////////////////////////////////////////////////////////////////////////////////////////////
   public badgePendingRequests$: Observable<number> = this.uploaderService.badgePendingRequests$;
 
-  public uploadPreviousAnalyses(showLoader: boolean = false) {
-    console.log('uploadPreviousAnalyses called');
-    this.uploaderService.uploadPreviousAnalyses(showLoader);
-  }
+  //////////////////////////////////////////////////////////////////////////////////////////////
 
   // Method to slice a 2D array in TypeScript
 /**
@@ -217,7 +214,7 @@ export class FruitCountService {
       this.imageDate = 'Fecha desconocida';
   
       imageToUse.onload = async () => {
-        console.groupCollapsed("Opening image and Reading EXIF");
+        console.group("Opening image and Reading EXIF");
   
         try {
           // Attempt to extract EXIF data from the file
@@ -362,6 +359,7 @@ export class FruitCountService {
   
   // Show loading with a customizable message and minimum duration
   private async showLoading(message: string = 'Please wait...', minDuration: number = 300) {
+    console.error(`Showing loading spinner with message: ${message}`);
     // Avoid creating multiple loading controllers
     if (this.loadingInstance) {
       return;
@@ -457,7 +455,7 @@ export class FruitCountService {
    * @param input - Event or filename for the image to be uploaded.
    */
   public async handleImageUpload(input: any, type: 'file' | 'sample' | 'blank' = 'file') {
-    console.log("Image upload triggered.");
+    console.error("Image upload triggered.");
 
     let files: FileList | File[] = [];
   
@@ -486,16 +484,17 @@ export class FruitCountService {
         return;
       }
     } else if (input && input.target && input.target.files && input.target.files.length > 0) {
-      console.log('Received event with multiple files.');
       this.isBadgeOpenFilesVisible = true;
       files = input.target.files; // Store all selected files
+      console.log('Received event with multiple files.');
     } else {
       throw new Error('Invalid input: Expected a file event or a filename.');
     }
-    const numImagesOpened = files.length;
+    let numImagesOpened = files.length;
   
     // Function to handle each file sequentially
     const processFile = async (index: number) => {
+      console.log(`Processing file ${index + 1}/${files.length}.`);
       this.isNextDisabled = this.imageType !== 'file';
       this.fileIndex = numImagesOpened - index;
 
@@ -503,15 +502,39 @@ export class FruitCountService {
         console.log('All files processed.');
         this.isBadgeOpenFilesVisible = false;
         this.isNextDisabled = true;
-        if ( this.imageType === "file" )
+        if ( this.imageType === "blank" ) {
+          return; // No more files to process after present blank
+        } else {
           console.log('Loading blank image after processing all files.');
-          this.handleImageUpload(undefined, 'blank');
-        return; // No more files to process
+          this.imageType = "blank";
+          this.imageFilename = './assets/images/sample_images/blank.png';
+
+          const response = await fetch(this.imageFilename);
+          if (!response.ok) {
+            throw new Error(`Failed to load image from URL: ${this.imageFilename}`);
+          }
+    
+          const blob = await response.blob();
+          const file = new File([blob], this.imageFilename.split('/').pop()!, { type: blob.type });
+          files = [file]; // Process as a single file
+          numImagesOpened = 1;
+          index = 0;
+        }
       }
 
       const file = files[index];
       this.imageFilename = file.name;
+      this.correctedQuantity = this.extractGtNumber(this.imageFilename);
       console.log(`Processing file: ${this.imageFilename}`, 2);
+      if ( this.imageType === "blank" )
+        this.imageId = 'blank';
+      else if ( this.imageType === "file" && this.correctedQuantity > 0 )
+        this.imageId = this.imageFilename;
+      else
+        this.imageId = uuidv4();
+      
+      console.warn(`Using Image ID: ${this.imageId}`);
+
   
       try {
         this.resetSensitivity();
@@ -524,7 +547,7 @@ export class FruitCountService {
         const img = await this.openImageExif(file);
         this.originalImage = img;
 
-        console.groupCollapsed("Predicting image.")
+        console.group(`Predicting image: ${this.imageId}.`)
 
         const inputTensor = this.convertImageToTensor(img);
         console.log(`Input tensor shape: ${inputTensor.shape}`, 1);
@@ -822,7 +845,7 @@ export class FruitCountService {
    * @returns The total number of objects drawn.
    */
   private async drawEllipses(showMessage: boolean = true): Promise<void> {
-    console.groupCollapsed('Drawing ellipses on canvas.');
+    console.group('Drawing ellipses on canvas.');
     try {
       if (this.predictBoxes && this.predictScores && this.ctx) {
         const total_before = this.totalSelectedObjects;
@@ -858,20 +881,23 @@ export class FruitCountService {
           console.log(`Selected ${this.totalSelectedObjects} objects.`, 2);
 
           if (showMessage) {
+            const n_sufix = this.totalSelectedObjects === 1 ? '' : 'n';
+            const s_sufix = this.totalSelectedObjects === 1 ? '' : 's';
+
             if (total_before == 0 && this.totalSelectedObjects > 0) {	
-              this.presentToast(`Se han detectado ${this.totalSelectedObjects} ${this.fruitName}.`, 'middle');
+              this.presentToast(`Se ha${n_sufix} detectado ${this.totalSelectedObjects} fruto${s_sufix}.`, 'bottom');
             } else if (this.totalSelectedObjects === 0) { 
-              this.presentToast(`No se ha detectado ningún ${this.fruitName} con esa sensibilidad.`, 'middle');
+              this.presentToast(`No se ha detectado ningún fruto con esa sensibilidad.`, 'bottom');
             } 
             else if (this.totalSelectedObjects > total_before ) {	
-              this.presentToast(`Encontrados ${this.totalSelectedObjects - total_before} más.`, 'middle');      
+              this.presentToast(`Encontrado${s_sufix} ${this.totalSelectedObjects - total_before} más.`, 'bottom');      
             }
             else if (this.totalSelectedObjects < total_before ) {	
-              this.presentToast(`Descartados ${total_before - this.totalSelectedObjects} entre los menos probables.`, 'middle');      
+              this.presentToast(`Descartado${s_sufix} ${total_before - this.totalSelectedObjects} entre los menos probables.`, 'bottom');      
             }
             else {
               if ( this._sensitivityValue != 0)
-                this.presentToast(`Ningún cambio en número de frutos.`, 'middle');
+                this.presentToast(`Ningún cambio en número de frutos.`, 'bottom');
             }
           }
 
@@ -1473,7 +1499,7 @@ private blobToBase64(blob: Blob): Promise<string> {
         message: message,
         position: position,
         cssClass: 'custom-toast',
-        duration: 4000
+        duration: 2000
     };
 
     console.log(`Presented Toast: ${message}`);
@@ -1497,7 +1523,7 @@ private blobToBase64(blob: Blob): Promise<string> {
       cssClass: 'custom-alert',
       header: header,
       message: message,
-      backdropDismiss: false,
+      //backdropDismiss: false,
       buttons: [{ cssClass: 'alert-button-confirm', text: 'Ok', role: 'confirm' }],
     });
   
@@ -1761,57 +1787,50 @@ private blobToBase64(blob: Blob): Promise<string> {
 
   public async storeResults(dataUrl: string, dataUrlOriginal: string, fruitType: string, fruitSubType: string, totalSelectedObjects: number, currentFilename: string = "") : Promise<void> {
     try {
-      let imageId = uuidv4();
-      let corrected_quantities = 0;
-      if (currentFilename !== "" && this.isUUIDv4(currentFilename)) {
-        imageId = this.getFilenameWithoutExtension(currentFilename);
-        corrected_quantities = this.extractGtNumber(currentFilename);
-        if (corrected_quantities > 0)
-          console.log('Corrected quantities:', corrected_quantities);
+      console.log('storeResults: Image ID:', this.imageId);
+
+      if ( this.imageId === 'blank' ) {
+        console.error('No se puede guardar un analisis en blanco.');
+      } else {
+        const base64Data = dataUrl.split(',')[1];
+        const base64DataOriginal = dataUrlOriginal.split(',')[1];
+
+        const fruit = this.mapFruitType(fruitType);
+        const type = this.mapFruitSubType(fruitSubType);
+
+        const Url_base = "https://prod-agroseguro-fruit-counting-bucket.s3.amazonaws.com/images"
+        const Url_result = `${Url_base}/results/${this.imageId}-result.jpg`;
+        const Url_original = `${Url_base}/originals/${this.imageId}-original.jpg`;
+
+        console.log('Going to mount API request...');
+        let resultModel = new ResultData();
+        resultModel.result_UUID = this.imageId;
+        resultModel.result_image = base64Data;
+        resultModel.original_image = base64DataOriginal;
+
+        resultModel.fruit = fruit;
+        resultModel.location = this.imageLocation;
+        resultModel.image_date = this.imageDate;
+        resultModel.weight = this.fruitWeight;
+        resultModel.quantities = totalSelectedObjects;
+        resultModel.pre_value = this.totalWeight;
+        resultModel.photo_type = type; // ARBOL/SUELO
+        resultModel.small_fruits = this.lowProbabilitySelectedObjects;
+        resultModel.medium_fruits = this.mediumProbabilitySelectedObjects;
+        resultModel.big_fruits = this.highProbabilitySelectedObjects;
+
+        resultModel.corrected_fruit_total_quantity = 0;
+        resultModel.corrected_fruit_big_quantity = 0;
+        resultModel.corrected_fruit_medium_quantity = 0;
+        resultModel.corrected_fruit_small_quantity = 0;
+        resultModel.url_original_image = Url_original;
+        resultModel.url_result_image = Url_result;
+        resultModel.mode = "offline"
+    
+        // Guardar en BD el analisis
+        console.log('Saving new analisys...');
+        await this.uploaderService.enqueueNewRequest(resultModel);
       }
-      console.log('Image ID:', imageId);
-
-      const base64Data = dataUrl.split(',')[1];
-      const base64DataOriginal = dataUrlOriginal.split(',')[1];
-
-      const fruit = this.mapFruitType(fruitType);
-      const type = this.mapFruitSubType(fruitSubType);
-
-      const Url_base = "https://prod-agroseguro-fruit-counting-bucket.s3.amazonaws.com/images"
-      const Url_result = `${Url_base}/results/${imageId}-result.jpg`;
-      const Url_original = `${Url_base}/originals/${imageId}-original.jpg`;
-
-      console.log('Going to mount API request...');
-      let resultModel = new ResultData();
-      resultModel.result_UUID = imageId;
-      resultModel.result_image = base64Data;
-      resultModel.original_image = base64DataOriginal;
-
-      resultModel.fruit = fruit;
-      resultModel.location = this.imageLocation;
-      resultModel.image_date = this.imageDate;
-      resultModel.weight = this.fruitWeight;
-      resultModel.quantities = totalSelectedObjects;
-      resultModel.pre_value = this.totalWeight;
-      resultModel.photo_type = type; // ARBOL/SUELO
-      resultModel.small_fruits = this.lowProbabilitySelectedObjects;
-      resultModel.medium_fruits = this.mediumProbabilitySelectedObjects;
-      resultModel.big_fruits = this.highProbabilitySelectedObjects;
-
-      resultModel.corrected_fruit_total_quantity = 0;
-      resultModel.corrected_fruit_big_quantity = 0;
-      resultModel.corrected_fruit_medium_quantity = 0;
-      resultModel.corrected_fruit_small_quantity = 0;
-      resultModel.url_original_image = Url_original;
-      resultModel.url_result_image = Url_result;
-      resultModel.mode = "offline"
-  
-      // Guardar en BD el analisis
-      console.log('Saving new analisys on storage...');
-      await this.storageService.set(imageId, resultModel);
-      console.log('Trying to send analisys inmediatelly...');
-      console.log("uploadPreviousAnalyses: Invoked after save a new image.")
-      this.uploaderService.uploadPreviousAnalyses(false);
     } catch (error) {
       console.error('Error uploading images and data to the cloud:', error);
       throw new Error('Error uploading to the cloud.');

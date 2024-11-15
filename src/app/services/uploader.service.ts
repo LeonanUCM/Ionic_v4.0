@@ -2,248 +2,381 @@ import { Injectable } from '@angular/core';
 import { StorageService } from './storage.service';
 import { UserService } from './user.service';
 import { Network } from '@capacitor/network';
-import { LoadingController } from '@ionic/angular';
+import { LoadingController, ToastController } from '@ionic/angular';
+import { CapacitorHttp, HttpResponse } from '@capacitor/core';
 import { BehaviorSubject, Observable } from 'rxjs';
+import { environment } from 'src/environments/environment';
+import { ResultData } from '../models/resultData';
+import { log } from '@tensorflow/tfjs-core/dist/log';
 
-/**
- * Injectable class to handle the automatic upload of
- * analyses stored in the local database to the backend.
- */
-
+interface UploadRequest {
+  id: number;
+  data: ResultData; // Reemplaza con el tipo de dato real de tus requests
+  status: 'pending' | 'in-progress' | 'completed' | 'failed';
+  retries: number;
+  timestamp: number;
+}
 
 @Injectable({
   providedIn: 'root',
 })
 export class UploaderService {
+  private requestQueue: UploadRequest[] = [];
+  private MAX_RETRIES: number = 5;
+  private retryIntervalInSeconds: number = 10;
+  private lastId: number = 0;
+
   private badgePendingRequestsSubject: BehaviorSubject<number> = new BehaviorSubject<number>(0);
   public badgePendingRequests$: Observable<number> = this.badgePendingRequestsSubject.asObservable();
-  private MAX_RETRIES = 5; // Número máximo de reintentos por upload
-  private retryIntervalInSeconds = 300;
-  private static isUploadingFlag: boolean = false;
-
 
   constructor(
     private storageService: StorageService,
-    private userService: UserService, 
-    private loadingController: LoadingController
+    private userService: UserService,
+    private loadingController: LoadingController,
+    private toastController: ToastController
   ) {
-    console.log("First attempt to retry pending uploads.")
-    this.uploadPreviousAnalyses(true);
-    
-    // Set up periodic invocation every X seconds
-    setInterval(() => {
-      console.log(`Invoking uploadPreviousAnalyses by timer.`)
-      this.uploadPreviousAnalyses(true);
-    }, this.retryIntervalInSeconds * 1000);    
-}
-
-
-  // Método para actualizar el valor del badge
-  public updateBadgePendingRequests(newValue: number): void {
-    if (this.badgePendingRequestsSubject.value !== newValue) {
-      console.log('updateBadgePendingRequests:', newValue);
-      this.badgePendingRequestsSubject.next(newValue);
-    }
+    console.log("UploaderService instance created");
+    this.initializeQueue();
+    this.setupTimer();
   }
 
   /**
-   * Method responsible for checking if the user is logged in,
-   * if there is internet connectivity, and if there are analyses
-   * stored in the local database.
-   *
-   * If conditions are met, it generates an auxiliary structure
-   * composed of the pending analyses, which are uploaded one by one:
-   * their data to the backend and their images to S3. In case of no errors,
-   * they are removed from the local database.
-   *
-   * @param {boolean} showLoader - Indicates whether to show a loader during the upload.
-   */ 
-
-  public async uploadPreviousAnalyses(showLoader: boolean = false) {
-
-    if (UploaderService.isUploadingFlag) {
-      console.warn(`performUpload: Upload already in progress. Skipping...`);
-      return;
-    }
-
-    const { connected } = await Network.getStatus();
-    const pendingAnalyses = await this.pendingAnalyses();
-    const numberRequests = await this.storageService.numberPendingRequests();
-    const userLoggedIn = this.userService.userLoggedIn;
-
-    console.log(`pendingAnalyses=${pendingAnalyses}(${numberRequests}), userLoggedIn=${userLoggedIn}, connected=${connected}`);
-
-    this.updateBadgePendingRequests(numberRequests);
-
-    if (connected && pendingAnalyses) {
-      if (userLoggedIn) {
-        console.log('User is connected. Trying to upload previous analyses to cloud...');
-        await this.userService.refreshToken();
-
-        if (showLoader) {
-          this.presentLoader(`${numberRequests} análisis pendientes están siendo enviados.`, 4000);
-        }
-      
-        // Ejecutar performUpload en segundo plano sin esperar a que termine
-        this.performUpload().then(() => {
-          // Aquí puedes manejar cualquier lógica adicional después de la carga, si es necesario
-          console.log('Upload completed in background.');
-          if (showLoader)
-            this.presentLoader(`Análisis pendientes enviados a la nube.`, 4000, false);
-        });
-      }
-      else {
-        console.warn('User is not logged in, but there is Internet, redirecting.');
-        await this.userService.logOff();
-        return;
-      }
-    }
-    else if (!connected && pendingAnalyses) {
-      console.warn('There is no Internet to try to to send pending análisis.');
-      return;
-    }
-  }
-
-  /**
-   * Performs the upload of analyses data and images.
+   * [P1] Inicializa la cola cargando los requests pendientes del storage.
    */
-  private async performUpload() {
+  private async initializeQueue(): Promise<void> {
+    try {
+      const storedRequests: UploadRequest[] = await this.storageService.getAll('results');
+      this.requestQueue = storedRequests
+        .filter((req) => req.status === 'pending' || req.status === 'failed')
+        .sort((a, b) => a.id - b.id); // Ordenar por ID
+      this.updateBadgePendingRequests(this.requestQueue.length);
+      this.lastId = this.requestQueue.length > 0 ? this.requestQueue[this.requestQueue.length - 1].id : 0;
+      console.log(`Initialized queue with ${this.requestQueue.length} pending requests, lastId=${this.lastId}.`);
+    } catch (error) {
+      console.error('Error initializing upload queue:', error);
+    }
+  }
 
-    if (UploaderService.isUploadingFlag) {
-      console.warn(`performUpload: Upload already in progress. Skipping...`);
+  private hasRequestId(id: string): boolean {
+    return this.requestQueue.some((req) => req.data.result_UUID === id);
+  }
+
+  /**
+   * [P2] Guarda un nuevo request y lo encola para su envío.
+   * @param requestData Los datos del nuevo request.
+   */
+  public async enqueueNewRequest(requestData: any): Promise<void> {
+    console.warn(`Enqueuing new request: result_UUID ${requestData.result_UUID}.`);
+    if ( this.hasRequestId(requestData.result_UUID)) {
+      console.error(`Enqueuing new request: result_UUID ${requestData.result_UUID} already exists in the queue. Ignoring.`);
     }
     else {
-      console.warn(`setting isUploadingFlag to true.`);
-      UploaderService.isUploadingFlag = true; // Set flag to indicate upload is in progress
-
-      console.groupCollapsed("Performing Upload");
       try {
-        const keys = await this.storageService.keys();
-        const pendingUploads = [];
-    
-        // Retrieve all elements in DB except user credentials, and initialize retries to current attempts
-        for (const key of keys) {
-          if (key !== 'login_credentials') {
-            console.log('performUpload: Preparing to upload:', key);
-            const item = await this.storageService.get(key);
-            pendingUploads.push({ key, item, retries: item.retries || 0 });
-          }
-        }
-    
-        let numberRequests = pendingUploads.length;
-        console.log("Number of pending uploads:", numberRequests);
-        this.updateBadgePendingRequests(numberRequests);
-    
-        // Process the queue
-        while (pendingUploads.length > 0) {
-          // Check for internet connectivity
-          const status = await Network.getStatus();
-          if (!status.connected) {
-            console.warn('No internet connection. Stopping upload process.');
-            // Exit the processing loop; items will be retried in next invocation
-            break;
-          }
-    
-          const currentUpload = pendingUploads.shift(); // Get the first item in the queue
-    
-          console.log(
-            `Processing item with key: ${currentUpload.key}, Retry attempt: ${currentUpload.retries + 1}`
-          );
-    
-          let success = true;
-    
-          // Upload analysis data
-          const dataSaved = await this.userService.uploadResultData(currentUpload.item);
-          if (!dataSaved) {
-            success = false;
-          } else {
-            // Upload result image to S3
-            const resultImageUploaded = await this.userService.uploadImage(currentUpload.item, true);
-            if (!resultImageUploaded) {
-              success = false;
-            } else {
-              // Upload original image to S3
-              const originalImageUploaded = await this.userService.uploadImage(currentUpload.item, false);
-              if (!originalImageUploaded) {
-                success = false;
-              }
-            }
-          }
-    
-          if (success) {
-            // Remove the item from storage upon successful upload
-            await this.storageService.remove(currentUpload.key);
-            numberRequests--;
-            this.updateBadgePendingRequests(numberRequests);
-            console.log(`Successfully uploaded and removed item with key: ${currentUpload.key}`);
-          } else {
-            currentUpload.retries++;
-            currentUpload.item.retries = currentUpload.retries; // Update retries in the item
-    
-            if (currentUpload.retries < this.MAX_RETRIES) {
-              // Update the item in storage with the new retries count
-              await this.storageService.set(currentUpload.key, currentUpload.item);
-              console.warn(
-                `Failed to upload item with key: ${currentUpload.key}. Will retry in next invocation (${currentUpload.retries}/${this.MAX_RETRIES})`
-              );
-            } else {
-              // Remove the item from storage after exceeding max retries
-              await this.storageService.remove(currentUpload.key);
-              numberRequests--;
-              this.updateBadgePendingRequests(numberRequests);
-              console.error(`Failed to upload item with key: ${currentUpload.key} after ${this.MAX_RETRIES} retries. Removing from storage.`);
-            }
-          }
-        }
+        const newRequest: UploadRequest = {
+          id: this.generateUniqueId(),
+          data: requestData,
+          status: 'pending',
+          retries: 0,
+          timestamp: Date.now(),
+        };
+
+        await this.storageService.save(newRequest, 'results');
+        this.requestQueue.push(newRequest);
+        this.updateBadgePendingRequests(this.requestQueue.length);
+        console.log(`Enqueued new request with ID: ${newRequest.id}`);
+
+        await this.uploadPendingRequests('new');
       } catch (error) {
-        console.error('Error during upload:', error.message);
-      } finally {
-        const numberRequests = await this.storageService.numberPendingRequests();
-        console.log('performUpload: pendingUploads=', numberRequests);
-        this.updateBadgePendingRequests(numberRequests);
-        console.groupEnd();
-        console.warn(`setting isUploadingFlag to false.`);
-        UploaderService.isUploadingFlag = false; // Set flag to indicate upload is in progress
+        console.error('Error enqueuing new request:', error);
       }
     }
   }
 
+  /**
+   * [P3] Configura el temporizador para enviar requests periódicamente.
+   */
+  private setupTimer(): void {
+    setInterval(() => {
+      console.log('Timer triggered: Invoking uploadPendingRequests for all pending requests.');
+      this.uploadPendingRequests('timer');
+    }, this.retryIntervalInSeconds * 1000);
+  }
+
+  /**
+   * [P3] Función de envío común para manejar requests desde el botón y el temporizador.
+   * @param source 'new' para solicitudes desde el botón, 'timer' para solicitudes desde el temporizador.
+   */
+  public async uploadPendingRequests(source: 'new' | 'timer'): Promise<void> {
+    let requestsToProcess: UploadRequest[] = [];
+
+    if (source === 'new') {
+      console.log('---Trying to send new request...');
+      // Obtener solo el request más nuevo
+      const latestRequest = this.getLatestRequest();
+      if (latestRequest) {
+        requestsToProcess.push(latestRequest);
+      }
+    } else if (source === 'timer') {
+      // Obtener todos los requests pendientes
+      requestsToProcess = [...this.requestQueue];
+    }
+
+    if (requestsToProcess.length === 0) {
+      console.log('No requests to process.');
+      return;
+    }
+    else if (source === 'timer') {
+      console.log('---Trying to send old requests (timer)...');
+      await this.notifyUserStart();
+    }
+
+
+    let successCount = 0;
+    let failureCount = 0;
+
+    for (const request of requestsToProcess) {
+      // [R6] Verificar el estado antes de procesar
+      if (request.status !== 'pending' && request.status !== 'failed') {
+        console.log(`---Skipping request ID: ${request.id} with status: ${request.status}`);
+        continue;
+      }
+
+      // Marcar como en proceso
+      request.status = 'in-progress';
+      await this.storageService.update(request, "results");
+      console.log(`---Processing request ID: ${request.id}`);
+
+      try {
+        // Realizar las tres llamadas a la API
+        await this.performApiCalls(request.data);
+        // Si todo salió bien, marcar como completado y eliminar del storage y la cola
+        request.status = 'completed';
+        await this.storageService.remove(request.id, "results");
+        this.removeFromQueue(request.id);
+        successCount++;
+        console.warn(`---Successfully uploaded request ID: ${request.id}`);
+      } catch (error) {
+        console.error(`---Error uploading request ID: ${request.id}:`, error);
+        // Manejar reintentos
+        request.retries += 1;
+        if (request.retries >= this.MAX_RETRIES) {
+          // [R7] Excedió el número de reintentos, eliminar y loguear error
+          request.status = 'failed';
+          await this.storageService.remove(request.id, "results");
+          this.removeFromQueue(request.id);
+          failureCount++;
+          console.error(`---Request ID: ${request.id} failed after ${this.MAX_RETRIES} retries. Removing from queue.`);
+        } else {
+          // Actualizar en storage con el nuevo contador de reintentos
+          request.status = 'pending';
+          await this.storageService.update(request, "results");
+          console.warn(`---Request ID: ${request.id} failed. Retry attempt ${request.retries}/${this.MAX_RETRIES}.`);
+        }
+      }
+    }
+
+    if (source === 'timer') {
+      await this.notifyUserEnd(successCount, failureCount);
+    }
+  }
+
+  /**
+   * [P4] Realiza las tres llamadas a la API para un request.
+   * @param data Los datos del request.
+   */
+  private async performApiCalls(data: any): Promise<void> {
+    // Implementa aquí las tres llamadas a las APIs necesarias.
+    // Asegúrate de que cada llamada sea exitosa antes de proceder a la siguiente.
+    // Si alguna falla, lanza un error para que el proceso lo maneje.
+
+    try {
+      // Ejemplo de llamadas secuenciales
+      await this.uploadResultImage(data);
+      await this.uploadOriginalImage(data);
+      await this.uploadResultData(data);
+    } catch (error) {
+      throw new Error('Failed to perform API calls');
+    }
+  }
+
+  /**
+   * [P5] Obtiene el request más nuevo de la cola.
+   */
+  private getLatestRequest(): UploadRequest | undefined {
+    if (this.requestQueue.length === 0) return undefined;
+    return this.requestQueue.reduce((latest, request) => {
+      return request.id > latest.id ? request : latest;
+    }, this.requestQueue[0]);
+  }
   
 
   /**
-   * Method responsible for checking if there are elements
-   * (analyses) in the local database, excluding user credentials.
-   *
-   * @returns true if there are analyses in the local database, false otherwise.
+   * [P5] Elimina un request de la cola en memoria.
+   * @param id ID del request a eliminar.
    */
-  async pendingAnalyses(): Promise<boolean> {
+  private removeFromQueue(id: number): void {
+    this.requestQueue = this.requestQueue.filter(req => req.id !== id);
+    this.updateBadgePendingRequests(this.requestQueue.length);
+  }
+
+  /**
+   * [P7] Genera un ID único para cada request.
+   */
+  private generateUniqueId(): number {
+    return this.lastId++;
+  }
+
+  /**
+   * [P6] Actualiza el contador de solicitudes pendientes para el badge.
+   * @param count Número de solicitudes pendientes.
+   */
+  private updateBadgePendingRequests(count: number): void {
+    this.badgePendingRequestsSubject.next(count);
+  }
+
+  /**
+   * [P5] Notifica al usuario al iniciar el envío desde el temporizador.
+   */
+  private async notifyUserStart(): Promise<void> {
     try {
-      const keys = await this.storageService.keys();
-      return keys.some(key => key !== 'login_credentials');
+      const pendingCount = this.requestQueue.length;
+      if (pendingCount === 0) return;
+
+      const alert = await this.toastController.create({
+        message: `Iniciando envío a la nube de ${pendingCount} análisis pendientes.`,
+        duration: 2000,
+        position: 'top',
+        cssClass: 'custom-toast',
+      });
+      await alert.present();
     } catch (error) {
-      console.error(
-        'uploadPreviousAnalyses: An error occurred while checking for analyses to upload: ',
-        error
-      );
+      console.error('Error notifying user start:', error);
+    }
+  }
+
+  /**
+   * [P5] Notifica al usuario al finalizar el envío desde el temporizador.
+   * @param success Cuántas solicitudes se enviaron con éxito.
+   * @param failure Cuántas solicitudes fallaron.
+   */
+  private async notifyUserEnd(success: number, failure: number): Promise<void> {
+    try {
+      const total = success + failure;
+      if (total === 0) return;
+
+      const message = `Envío de ${success} análisis a la nube completado. ${success}.`
+      console.error(`${failure} requests failled.`);
+
+      const alert = await this.toastController.create({
+        message: message,
+        duration: 2000,
+        position: 'top',
+        cssClass: 'custom-toast',
+      });
+      await alert.present();
+    } catch (error) {
+      console.error('Error notifying user end:', error);
+    }
+  }
+
+
+  /**
+     * Uploads analysis data to the backend.
+     *
+     * @param {any} resultData - JSON containing all the data of an analysis.
+     * @returns True if the analysis data was saved successfully, false otherwise.
+     */
+  public async uploadResultData(resultData: any): Promise<boolean> {
+    const options = {
+      url: `${environment.api_url}/photo/data`,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: this.userService.getToken(),
+      },
+      data: [
+        {
+          fruit: resultData.fruit,
+          location: resultData.location,
+          image_date: resultData.image_date,
+          weight: resultData.weight,
+          quantities: resultData.quantities,
+          pre_value: resultData.pre_value,
+          type: resultData.photo_type,
+          small_fruits: resultData.small_fruits,
+          medium_fruits: resultData.medium_fruits,
+          big_fruits: resultData.big_fruits,
+          original_url: resultData.url_original_image,
+          url: resultData.url_result_image,
+          corrected_quantities: resultData.corrected_fruit_total_quantity,
+          corrected_big_fruits: resultData.corrected_fruit_big_quantity,
+          corrected_medium_fruits: resultData.corrected_fruit_medium_quantity,
+          corrected_small_fruits: resultData.corrected_fruit_small_quantity,
+          mode: resultData.mode
+        },
+      ],
+    };
+
+    try {
+      console.log(`Sending data request:`, resultData.result_UUID);
+      const response: HttpResponse = await CapacitorHttp.post(options);
+      if (response.status >= 200 && response.status < 300) {
+        console.log('Result data saved successfully');
+        return true;
+      } else {
+        console.log('Result data could not be saved:', response);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error in uploadResultData method:', error.message);
       return false;
     }
   }
 
   /**
-   * Method to show a loader. It blocks indefinitely if timeout is 0,
-   * or dismisses automatically after a specified timeout.
-   * @param loaderMessage The message to display in the loader.
-   * @param timeout Duration in milliseconds before the loader is automatically dismissed. If 0, loader will not auto-dismiss.
-   * @returns A promise that resolves when the loader is dismissed.
+   * Uploads the result or original image of an analysis to S3.
+   *
+   * @param {any} resultData - JSON containing all the data of an analysis.
+   * @param {boolean} isResultImage - Indicates if the image to be uploaded is the original (false) or the result image (true).
+   * @returns True if the image was uploaded successfully, false otherwise.
    */
-  async presentLoader(loaderMessage: string, timeout: number, showSpinner: boolean = true): Promise<void> {
-    const loading = await this.loadingController.create({
-      cssClass: 'custom-loading',
-      message: loaderMessage,
-      spinner: showSpinner ? 'bubbles' : null,
-      duration: (timeout > 0) ? timeout : null,
-    });
-    console.log(`Presented Loader: ${loaderMessage}`);
-    await loading.present();
+  public async uploadImage(resultData: any, isResultImage: boolean): Promise<boolean> {
+    const imageType = isResultImage ? 'result' : 'original';
+    console.log(`uploadImage: Uploading ${imageType} image`);
+
+    const options = {
+      url: `${environment.api_url}/photo`,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: this.userService.getToken(),
+      },
+      data: {
+        name: `${resultData.result_UUID}-${imageType}`,
+        file: isResultImage ? resultData.result_image : resultData.original_image,
+        result: isResultImage,
+      },
+    };
+
+    try {
+      console.log(`uploadImage: Sending ${imageType} image upload request:`, options.data.name);
+      const response: HttpResponse = await CapacitorHttp.post(options);
+      if (response.status >= 200 && response.status < 300) {
+        console.log(`uploadImage: ${imageType.charAt(0).toUpperCase() + imageType.slice(1)} image uploaded successfully`);
+        return true;
+      } else {
+        console.warn(`uploadImage: ${imageType.charAt(0).toUpperCase() + imageType.slice(1)} image could not be uploaded`);
+      }
+    } catch (error) {
+      console.error('uploadImage: Error in request on uploadImage method :', error.message);
+    }
+    return false;
   }
+
+  public async uploadResultImage(resultData: any): Promise<boolean> {
+    return await this.uploadImage(resultData, true);
+  }
+
+  public async uploadOriginalImage(resultData: any): Promise<boolean> {
+    return await this.uploadImage(resultData, false);
+  }
+
 }
