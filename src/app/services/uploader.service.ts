@@ -7,7 +7,7 @@ import { CapacitorHttp, HttpResponse } from '@capacitor/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { environment } from 'src/environments/environment';
 import { ResultData } from '../models/resultData';
-import { log } from '@tensorflow/tfjs-core/dist/log';
+//import { log } from '@tensorflow/tfjs-core/dist/log';
 
 interface UploadRequest {
   id: number;
@@ -22,7 +22,7 @@ interface UploadRequest {
 })
 export class UploaderService {
   private requestQueue: UploadRequest[] = [];
-  private MAX_RETRIES: number = 5;
+  private MAX_RETRIES: number = 20;
   private retryIntervalInSeconds: number = 90;
   private lastId: number = 0;
 
@@ -254,7 +254,7 @@ export class UploaderService {
       if (pendingCount === 0) return;
 
       const alert = await this.toastController.create({
-        message: `Iniciando envío a la nube de ${pendingCount} análisis pendientes.`,
+        message: `Iniciando envío a la nube de análisis pendientes.`,
         duration: 2000,
         position: 'top',
         cssClass: 'custom-toast',
@@ -275,7 +275,7 @@ export class UploaderService {
       const total = success + failure;
       if (total === 0) return;
 
-      const message = `Envío de ${success} análisis a la nube completado. ${success}.`
+      const message = `Envío de análisis a la nube completado.`
       console.log(`${failure} requests failled.`);
 
       const alert = await this.toastController.create({
