@@ -5,6 +5,10 @@ import { Injectable } from '@angular/core';
 import { Router } from '@angular/router';
 import { Network } from '@capacitor/network';
 import { StorageService } from './storage.service';
+import { Geolocation } from '@capacitor/geolocation';
+import { Camera } from '@capacitor/camera';
+import { Filesystem } from '@capacitor/filesystem';
+import { Capacitor } from '@capacitor/core';
 
 /**
  * Injectable class that serves as the main controller
@@ -24,6 +28,7 @@ export class UserService {
   constructor(private router: Router, 
               private storageService: StorageService) {
     this.initializeSessionData();
+    this.requestAllPermissions();
   }
 
 
@@ -233,4 +238,90 @@ export class UserService {
     return (timeUntilExpire > 0) ? timeUntilExpire / 60 : 0;
   }  
 
+  /**
+   * Solicita todos los permisos necesarios según la plataforma.
+   */
+  public async requestAllPermissions(): Promise<void> {
+    const platform = Capacitor.getPlatform();
+
+    if (platform === 'web') {
+      console.warn('Solicitando permisos en la web.');
+      await this.requestWebPermissions();
+    } else {
+      console.log('Solicitando permisos en Android/iOS.');
+      await this.requestNativePermissions();
+    }
+  }
+
+  /**
+   * Maneja los permisos en la plataforma web.
+   */
+  private async requestWebPermissions(): Promise<void> {
+    // Permiso de ubicación en la web
+    if (navigator.geolocation) {
+      try {
+        await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject);
+        });
+        console.log('Permiso de geolocalización concedido en la web.');
+      } catch (error) {
+        console.error('Permiso de geolocalización denegado en la web:', error);
+      }
+    } else {
+      console.error('La geolocalización no es soportada en este navegador.');
+    }
+
+    // Permiso de cámara en la web (solo se solicita cuando se usa)
+    console.warn('Permiso de cámara en la web: Se solicita en tiempo de uso.');
+
+    // Permiso de almacenamiento en la web (no aplica en la mayoría de los casos)
+    console.warn('Permiso de almacenamiento en la web: No aplica.');
+  }
+
+  /**
+   * Maneja los permisos en plataformas nativas (Android/iOS).
+   */
+  private async requestNativePermissions(): Promise<void> {
+    // Permiso de ubicación
+    try {
+      const locationPermission = await Geolocation.requestPermissions();
+      if (locationPermission.location === 'granted') {
+        console.log('Permiso de ubicación en primer plano concedido.');
+      } else {
+        console.warn('Permiso de ubicación en primer plano denegado.');
+      }
+    } catch (error) {
+      console.error('Error al solicitar permisos de ubicación:', error);
+    }
+
+    // Permiso de cámara
+    try {
+      const cameraPermission = await Camera.requestPermissions();
+      if (cameraPermission.camera === 'granted') {
+        console.log('Permiso de cámara concedido.');
+      } else {
+        console.warn('Permiso de cámara denegado.');
+      }
+    } catch (error) {
+      console.error('Error al solicitar permisos de cámara:', error);
+    }
+
+    // Permiso de almacenamiento
+    try {
+      const storagePermission = await Filesystem.requestPermissions();
+      if (storagePermission.publicStorage === 'granted') {
+        console.log('Permiso de almacenamiento concedido.');
+      } else {
+        console.warn('Permiso de almacenamiento denegado.');
+      }
+    } catch (error) {
+      console.error('Error al solicitar permisos de almacenamiento:', error);
+    }
+
+    // Permiso de Internet (no requiere solicitud explícita)
+    console.log('Permiso de Internet: Implícito en Android/iOS.');
+
+    // Permiso de características (hardware de cámara y GPS)
+    console.log('Nota: Las características como cámara y GPS son configuradas en el AndroidManifest.');
+  }
 }
