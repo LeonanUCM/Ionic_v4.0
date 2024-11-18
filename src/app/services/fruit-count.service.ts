@@ -682,6 +682,15 @@ export class FruitCountService {
    * @param threshold The confidence threshold for drawing.
    * @returns The total number of objects drawn.
    */
+
+  private drawOriginalImage() {
+      // Clear the canvas before redrawing the image
+      this.ctx.clearRect(0, 0, this.canvas!.width, this.canvas!.height);
+  
+      // Draw the original image
+      this.drawRoundedImage(this.ctx, this.originalImage);
+  }
+
   private async drawEllipses(showMessage: boolean = true): Promise<void> {
     console.groupCollapsed('Drawing ellipses on canvas.');
     try {
@@ -700,12 +709,7 @@ export class FruitCountService {
         // Restore the original image before drawing ellipses
         if (this.originalImage instanceof HTMLImageElement && this.ctx) {
           console.log('Restoring original image before drawing ellipses.');
-          
-          // Clear the canvas before redrawing the image
-          this.ctx.clearRect(0, 0, this.canvas!.width, this.canvas!.height);
-          
-          // Draw the original image
-          this.drawRoundedImage(this.ctx, this.originalImage);
+          this.drawOriginalImage();
         } else {
           console.error('Original image not available. Skipping image restoration.');
         }
@@ -1441,7 +1445,7 @@ private blobToBase64(blob: Blob): Promise<string> {
 
           const fileUri = savedFile.uri;
           Share.share({
-              title: 'Compartir analisis de frutas',
+              title: 'Compartir análisis de frutas',
               text: `${this.totalSelectedObjects} ${this.fruitName}!`,
               url: fileUri,
               dialogTitle: 'Compartir Imagen',
@@ -1860,6 +1864,7 @@ private blobToBase64(blob: Blob): Promise<string> {
   private async performImageProcessing(file: File) {
     const img = await this.openImageExif(file);
     this.originalImage = img;
+    this.drawOriginalImage();    
 
     console.group(`Predicting image: ${this.imageId}.`);
 
