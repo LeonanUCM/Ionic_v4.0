@@ -10,10 +10,10 @@ import { Session } from "./session";
  * @property {Session} session_data - Datos de sesión actual del usuario.
  */
 export class User {
-    email: string;
-    name: string;
-    last_name: string;
-    company: string;
+    email: string = '';
+    name: string = '';
+    last_name: string = '';
+    company: string = '';
     session_data: Session;
 
     constructor() {

@@ -43,7 +43,8 @@ export class LoginPage {
         if ( await this.userService.refreshToken() )
           await this.router.navigate(['/home']);
       } else {
-        await this.deactivateOnlineOptions();
+        if ( this.userService.getUserName() !== '')
+          await this.deactivateOnlineOptions();
       }
     } catch (error) {
       console.error('Error al recuperar credenciales:', error.message);
@@ -69,9 +70,12 @@ export class LoginPage {
     const status = await Network.getStatus();
 
     if (!status.connected) {
-      error_title = 'Sin conexión a Internet';
-      error_message =
-        'No se detectó conexión a Internet. Puedes seguir usando la app; los datos se subirán automáticamente a la nube más tarde.';
+      
+      if ( this.userService.getUserName() === '')
+        error_message = 'Se requiere conexión a Internet y un usuario válido la primera vez que se utiliza la aplicación.';
+      else
+        error_message = 'No se detectó conexión a Internet. Puedes seguir usando la app; los datos se subirán automáticamente a la nube más tarde.';
+
     } else if (!this.user_email) {
       error_message = 'No has ingresado un correo.';
     } else if (
@@ -106,7 +110,7 @@ export class LoginPage {
   async logIn() {
     const loading = await this.loadingController.create({
       cssClass: 'custom-loading',
-      message: 'Iniciando sesion...',
+      message: 'Iniciando sesión...',
     });
     await loading.present();
 

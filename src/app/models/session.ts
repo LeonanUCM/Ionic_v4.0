@@ -9,10 +9,10 @@
  */
 export class Session {
     id: number = 0;
-    token: string;
-    refreshToken: string;
-    status: string;
-    userId: string;
-    expireIn: string;
-    userEmail: string;
+    token: string = '';
+    refreshToken: string = '';
+    status: string = '';
+    userId: string = '';
+    expireIn: string = '';
+    userEmail: string = '';
 }
