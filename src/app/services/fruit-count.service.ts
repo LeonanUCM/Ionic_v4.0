@@ -100,8 +100,24 @@ export class FruitCountService {
     this.calculateScoreThreshold(this.sensitivityValue);
     console.log(`Initial confidence threshold: ${this.scoreThreshold}`, 2);
 
+
+    // Allow to select multiple images (batch) only on web
+    const inputElement = document.getElementById('imageUpload') as HTMLInputElement;
+
+    if (inputElement) {
+      // Detectar la plataforma
+      const platform = Capacitor.getPlatform();
+      console.log(`Platform detected: ${platform}`);
+
+      // Ajustar el atributo "multiple" dinámicamente
+      if (platform === 'web') {
+        inputElement.setAttribute('multiple', '');
+      } else {
+        inputElement.removeAttribute('multiple');
+      }
+    }
+
     // Draw the sample image and load the model
-    //this.drawRoundedImage(this.canvas!, this.fruitSampleFilename);
     this.loadModel(true);
     this.handleImageUpload(undefined, 'sample');
   }
@@ -196,86 +212,86 @@ export class FruitCountService {
       return [rows, cols];
     }
 
-  /**
-   * Processes an image file to extract the date and location from its EXIF data.
-   * If the EXIF data is not available, it uses the current date and device's location.
-   * Handles exceptions and logs the process.
-   *
-   * @param file - The image file to process.
-   */
-  private async openImageExif(file: File, img?: HTMLImageElement): Promise<HTMLImageElement> {
-    return new Promise((resolve, reject) => {
-      const imageToUse = img || new Image();
-  
-      // Only create a new image if none is provided
-      if (!img) {
+
+    private async openImageExif(file: File): Promise<HTMLImageElement> {
+      return new Promise((resolve, reject) => {
+        const imageToUse: HTMLImageElement = new Image();
         imageToUse.src = URL.createObjectURL(file);
-      }
-  
-      // Default metadata values
-      this.imageLocation = `Ubicación desconocida`;
-      this.deviceModel = 'Foto sin Metadata';
-      this.imageDate = 'Fecha desconocida';
-  
-      imageToUse.onload = async () => {
-        console.group("Opening image and Reading EXIF");
-  
-        try {
-          // Attempt to extract EXIF data from the file
-          console.log('Attempting to extract EXIF data from the image...');
-          const exifData = await exifr.parse(file, { gps: true, tiff: true, exif: true });
-  
-          if (exifData) {
-            console.log('EXIF data found:', exifData);
-  
-            // Get the image date from EXIF data
-            if (exifData.DateTimeOriginal) {
-              this.imageDate = this.formatExifDate(exifData.DateTimeOriginal);
-              console.log('Date obtained from EXIF data:', this.imageDate);
+    
+        // Default metadata values
+        this.imageLocation = 'Ubicación desconocida';
+        this.deviceModel = 'Foto sin Metadata';
+        this.imageDate = 'Fecha desconocida';
+    
+        const processImage = async () => {
+          console.group('Opening image and Reading EXIF');
+          try {
+            // Ensure image is fully loaded
+            await this.ensureImageIsLoaded(imageToUse);
+    
+            // Attempt to extract EXIF data from the file
+            console.log('Attempting to extract EXIF data from the image...');
+            const exifData = await exifr.parse(file, { gps: true, tiff: true, exif: true });
+    
+            if (exifData) {
+              console.log('EXIF data found:', exifData);
+              this.processExifData(exifData);
             } else {
-              // If no date in EXIF data, use the current date
-              this.imageDate = this.getCurrentDateTime();
-              console.log('No date found in EXIF data. Using current date:', this.imageDate);
+              console.log('No EXIF data found in the image.');
             }
-  
-            // Get GPS location from EXIF data
-            if (exifData.latitude && exifData.longitude) {
-              this.imageLocation = `${exifData.latitude.toFixed(6)},${exifData.longitude.toFixed(6)}`;
-              console.log('Location obtained from EXIF data:', this.imageLocation);
-            } else {
-              console.log('No GPS location found in EXIF data. Attempting to get current device location...');
-            }
-  
-            // Get device make and model from EXIF data
-            const deviceBrand = exifData.Make || 'Marca desconocida';
-            const deviceModel = exifData.Model || 'Modelo desconocido';
-            this.deviceModel = `${deviceBrand} / ${deviceModel}`;
-            console.log(`Device make and model obtained from EXIF data: ${this.deviceModel}`);
-          } else {
-            console.log('No EXIF data found in the image.');
+    
+            console.groupEnd();
+            resolve(imageToUse); // Resolve with the fully loaded and processed image
+          } catch (error) {
+            console.error('Error reading EXIF data:', error);
+            console.groupEnd();
+            reject(error);
           }
-  
-          // Resolve with the Image object after EXIF processing is complete
-          resolve(imageToUse);
-        } catch (error) {
-          console.error('Error reading EXIF data:', error.message);
-          reject(error); // Reject the promise on error
-        } finally {
-          console.groupEnd();
-        }
-      };
-  
-      imageToUse.onerror = (error) => {
-        console.error('Error loading image:', error);
-        reject(error); // Reject the promise if image loading fails
-      };
-  
-      // If `img` is already loaded, invoke `onload` directly
-      if (img && img.complete) {
-        imageToUse.onload!(new Event('load'));
-      }
-    });
+        };
+    
+        imageToUse.onload = async () => {
+          await processImage();
+        };
+    
+        imageToUse.onerror = (error) => {
+          console.error('Error loading image:', error);
+          reject(new Error('Failed to load image.'));
+        };
+      });
+    }
+    
+
+/**
+ * Processes EXIF data extracted from the image.
+ *
+ * @param exifData - The EXIF data to process.
+ */
+private processExifData(exifData: any): void {
+  // Get the image date from EXIF data
+  if (exifData.DateTimeOriginal) {
+    this.imageDate = this.formatExifDate(exifData.DateTimeOriginal);
+    console.log('Date obtained from EXIF data:', this.imageDate);
+  } else {
+    this.imageDate = this.getCurrentDateTime();
+    console.log('No date found in EXIF data. Using current date:', this.imageDate);
   }
+
+  // Get GPS location from EXIF data
+  if (exifData.latitude && exifData.longitude) {
+    this.imageLocation = `${exifData.latitude.toFixed(6)},${exifData.longitude.toFixed(6)}`;
+    console.log('Location obtained from EXIF data:', this.imageLocation);
+  } else {
+    console.log('No GPS location found in EXIF data.');
+  }
+
+  // Get device make and model from EXIF data
+  const deviceBrand = exifData.Make || 'Marca desconocida';
+  const deviceModel = exifData.Model || 'Modelo desconocido';
+  this.deviceModel = `${deviceBrand} / ${deviceModel}`;
+  console.log(`Device make and model obtained from EXIF data: ${this.deviceModel}`);
+}
+
+  
   
 
   /**
@@ -468,33 +484,81 @@ export class FruitCountService {
       this.drawEllipses();
     }
   }
+  //////////////////////////////////////////////////////////////////////////////////////////////
+
+   /**
+   * Ensures the image is fully loaded before proceeding.
+   * @param img The HTMLImageElement to validate.
+   * @returns A Promise resolving when the image is fully loaded.
+   * @throws An error if the image fails to load.
+   */
+  private ensureImageIsLoaded(img: HTMLImageElement): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
+        resolve(); // Image is already loaded
+      } else {
+        img.onload = () => resolve();
+        img.onerror = (err) => reject(new Error('Failed to load image.'));
+      }
+    });
+  }
 
   //////////////////////////////////////////////////////////////////////////////////////////////
 
   /**
-   * Converts an image to a TensorFlow.js tensor.
+   * Converts an HTMLImageElement to a TensorFlow.js tensor.
+   * 
+   * Steps:
+   * - Resize the input image to a specified resolution.
+   * - Extract image data from the resized canvas.
+   * - Convert the image data to a normalized tensor.
+   * - Add a batch dimension for processing in a model.
+   * 
+   * Logs:
+   * - Input dimensions of the original image.
+   * - Dimensions of the resized image.
+   * - Shape of the resulting tensor.
+   * 
    * @param img The HTMLImageElement to convert.
-   * @returns The resulting tensor.
+   * @returns A 4D TensorFlow.js tensor suitable for model input.
+   * @throws Error if canvas context cannot be obtained or conversion fails.
    */
-  private convertImageToTensor(img: HTMLImageElement): tf.Tensor {
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = this.baseResolution;
-    tempCanvas.height = this.baseResolution;
-    const tempCtx = tempCanvas.getContext('2d');
-    if (!tempCtx) {
-      throw new Error('Failed to get temporary canvas context.');
+  private async convertImageToTensor(img: HTMLImageElement): Promise<tf.Tensor> {
+    try {
+      console.group('Converting Image to Tensor');
+
+      // Log original image dimensions
+      console.log(`Original Image Dimensions: ${img.naturalWidth}x${img.naturalHeight}`);
+
+      // Step 1: Resize the image
+      const resizedCanvas = await this.imageToCanvas(this.resizeImage(img, this.baseResolution, this.baseResolution));
+      console.log(`Resized Image Dimensions: ${resizedCanvas.width}x${resizedCanvas.height}`);
+
+      // Step 2: Get 2D context from the resized canvas
+      const tempCtx = resizedCanvas.getContext('2d');
+      if (!tempCtx) {
+        throw new Error('Failed to obtain canvas 2D context. Ensure the canvas is valid.');
+      }
+
+      // Step 3: Extract image data
+      const imageData = tempCtx.getImageData(0, 0, resizedCanvas.width, resizedCanvas.height);
+      console.log('Image data successfully extracted from the canvas.');
+
+      // Step 4: Convert image data to a TensorFlow.js tensor
+      let tensor = tf.browser.fromPixels(imageData).toFloat().div(255.0);
+      console.log('Tensor created from image data.');
+
+      // Step 5: Add an extra batch dimension
+      tensor = tensor.expandDims(0);
+      console.log(`Tensor shape after adding batch dimension: ${tensor.shape}`);
+
+      console.groupEnd();
+      return tensor;
+    } catch (error) {
+      console.error('Error during image to tensor conversion:', error);
+      console.groupEnd();
+      throw new Error('Failed to convert image to tensor. Check the logs for details.');
     }
-    tempCtx.drawImage(img, 0, 0, this.baseResolution, this.baseResolution);
-    const imageData = tempCtx.getImageData(0, 0, this.baseResolution, this.baseResolution);
-
-    // Convert the image to a tensor
-    let tensor = tf.browser.fromPixels(imageData).toFloat().div(255.0);
-
-    // Add an extra batch dimension
-    tensor = tensor.expandDims(0);
-
-    console.log(`Image shape: ${tensor.shape}`, 2);
-    return tensor;
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////
@@ -1416,8 +1480,9 @@ private blobToBase64(blob: Blob): Promise<string> {
 
   public async shareCanvasImage(platform: string = "auto") {
     console.log('shareCanvasImage: platform=', platform);
-    const dataUrl = this.getDataUrl(this.canvas!);
-    const dataUrlOriginal = this.getDataUrl(this.originalImage!);
+    const dataUrl = this.canvas!.toDataURL('image/jpeg', 0.9);
+
+    const dataUrlOriginal = (await this.imageToCanvas(this.originalImage!)).toDataURL('image/jpeg', 0.9);
     const newFilename = this.enrichFilename(this.imageFilename);
 
     if (platform === "cloud") {
@@ -1468,49 +1533,166 @@ private blobToBase64(blob: Blob): Promise<string> {
     return match ? parseInt(match[1], 10) : 0;
   }
 
-  public getDataUrl(element: HTMLCanvasElement | HTMLImageElement): string {
-    return this.resizeImage(element).toDataURL('image/jpeg', 0.9);
+  
+  /**
+   * Resizes an HTMLImageElement to specified dimensions without maintaining the aspect ratio.
+   * 
+   * @param element The image to resize.
+   * @param targetWidth The desired width of the output image.
+   * @param targetHeight The desired height of the output image.
+   * @returns A resized HTMLImageElement.
+   */
+  public resizeImage(
+    element: HTMLImageElement,
+    targetWidth: number = 640,
+    targetHeight: number = 640
+  ): HTMLImageElement {
+    // Get the original dimensions of the input image
+    const width = element.width;
+    const height = element.height;
+
+    console.group('Resizing Image');
+    console.log(`Original Dimensions: ${width}x${height}`);
+    console.log(`Target Dimensions: ${targetWidth}x${targetHeight}`);
+
+    // Create a canvas for resizing
+    const resizedCanvas = document.createElement('canvas');
+    resizedCanvas.width = targetWidth;
+    resizedCanvas.height = targetHeight;
+
+    const resizedContext = resizedCanvas.getContext('2d');
+    if (!resizedContext) {
+      console.error('Failed to get 2D context of the canvas.');
+      throw new Error('Failed to create canvas for resizing.');
+    }
+
+    // Stretch the image to fill the entire canvas
+    resizedContext.drawImage(element, 0, 0, targetWidth, targetHeight);
+
+    console.log(`Resizing completed. Canvas Dimensions: ${resizedCanvas.width}x${resizedCanvas.height}`);
+    console.groupEnd();
+
+    // Convert canvas back to HTMLImageElement
+    return this.canvasToImage(resizedCanvas);
   }
 
-  public resizeImage(element: HTMLImageElement | HTMLCanvasElement, maxDimension: number = 2048): HTMLCanvasElement {
-    const width = element instanceof HTMLCanvasElement ? element.width : element.naturalWidth;
-    const height = element instanceof HTMLCanvasElement ? element.height : element.naturalHeight;
+  
+    
+    
+  /**
+   * Resizes an HTMLImageElement to fit within the maximum dimension while maintaining the aspect ratio.
+   * 
+   * @param element The image to resize.
+   * @param maxDimension The maximum width or height of the output image.
+   * @returns A resized HTMLImageElement.
+   */
+  public resizeImageMax(
+    element: HTMLImageElement,
+    maxDimension: number = 2048
+  ): HTMLImageElement {
+    const width = element.naturalWidth;
+    const height = element.naturalHeight;
 
-    // Verificar si la imagen ya está dentro del límite de tamaño
+    // Check if resizing is needed
     if (width <= maxDimension && height <= maxDimension) {
-        // Si ya es más pequeña, no se redimensiona
-        const originalCanvas = document.createElement('canvas');
-        originalCanvas.width = width;
-        originalCanvas.height = height;
-        const context = originalCanvas.getContext('2d');
-        if (context) {
-            context.drawImage(element, 0, 0);
-        }
-        return originalCanvas;
+      console.log('No resizing needed. Returning the original image.');
+      return element; // Return the original image if resizing is not needed
     }
-    // Calcular nuevas dimensiones manteniendo el ratio
+
+    console.group('Resizing Image with Max Dimension');
+    console.log(`Original Dimensions: ${width}x${height}`);
+    console.log(`Max Dimension: ${maxDimension}`);
+
+    // Calculate new dimensions while maintaining the aspect ratio
     const aspectRatio = width / height;
     let newWidth, newHeight;
 
     if (width > height) {
-        newWidth = maxDimension;
-        newHeight = Math.round(maxDimension / aspectRatio);
+      newWidth = maxDimension;
+      newHeight = Math.round(maxDimension / aspectRatio);
     } else {
-        newHeight = maxDimension;
-        newWidth = Math.round(maxDimension * aspectRatio);
+      newHeight = maxDimension;
+      newWidth = Math.round(maxDimension * aspectRatio);
     }
 
-    // Crear un canvas redimensionado
-    const resizedCanvas = document.createElement('canvas');
-    resizedCanvas.width = newWidth;
-    resizedCanvas.height = newHeight;
-    const resizedContext = resizedCanvas.getContext('2d');
-    if (resizedContext) {
-        resizedContext.drawImage(element, 0, 0, newWidth, newHeight);
-    }
+    console.log(`Caclulated Resized Dimensions: ${newWidth}x${newHeight}`);
 
-    return resizedCanvas;
+    // Use resizeImage to perform the actual resizing
+    const resizedImage = this.resizeImage(element, newWidth, newHeight);
+    console.groupEnd();
+
+    return resizedImage;
   }
+
+  
+  
+
+  /**
+   * Convert an HTMLCanvasElement to an HTMLImageElement
+   * @param canvas The canvas to convert
+   * @param format The image format, e.g., 'image/png' or 'image/jpeg'
+   * @param quality Quality of the image for formats like 'image/jpeg' (0.0 to 1.0)
+   * @returns HTMLImageElement
+   */
+  public canvasToImage(canvas: HTMLCanvasElement, format: string = 'image/jpg', quality: number = 1.0): HTMLImageElement {
+    const image = new Image();
+    image.src = canvas.toDataURL(format, quality); // Convert canvas to Data URL
+    return image;
+  }
+
+/**
+ * Converts an HTMLImageElement to an HTMLCanvasElement.
+ * Ensures the input image is fully loaded before proceeding.
+ * 
+ * Debug Information:
+ * - Logs the dimensions of the input image and the resulting canvas.
+ * - Handles and logs errors if the canvas context is unavailable.
+ * 
+ * @param image The HTMLImageElement to convert.
+ * @returns A new HTMLCanvasElement containing the drawn image.
+ * @throws Error if the canvas context cannot be obtained.
+ */
+public async imageToCanvas(image: HTMLImageElement): Promise<HTMLCanvasElement> {
+  try {
+    console.group('Converting Image to Canvas');
+
+    // Ensure the image is fully loaded
+    await this.ensureImageIsLoaded(image);
+
+    // Log the dimensions of the input image
+    const imageWidth = image.naturalWidth;
+    const imageHeight = image.naturalHeight;
+
+    console.log(`Input Image Dimensions: ${imageWidth}x${imageHeight}`);
+
+    // Create a new canvas and set its dimensions
+    const canvas = document.createElement('canvas');
+    canvas.width = imageWidth;
+    canvas.height = imageHeight;
+
+    console.log(`Created Canvas with Dimensions: ${canvas.width}x${canvas.height}`);
+
+    // Get the 2D drawing context
+    const context = canvas.getContext('2d');
+    if (!context) {
+      console.error('Failed to get 2D context from the canvas.');
+      throw new Error('Canvas rendering context is not available.');
+    }
+
+    // Draw the image onto the canvas
+    context.drawImage(image, 0, 0);
+    console.log('Image successfully drawn onto the canvas.');
+
+    console.groupEnd();
+    return canvas;
+  } catch (error) {
+    // Log the error and rethrow
+    console.error('Error during image-to-canvas conversion:', error);
+    console.groupEnd();
+    throw new Error('Failed to convert image to canvas. Check logs for details.');
+  }
+}
+
 
 
   async inputWeight() {
@@ -1862,13 +2044,12 @@ private blobToBase64(blob: Blob): Promise<string> {
    * @param file - Archivo de imagen a procesar.
    */
   private async performImageProcessing(file: File) {
-    const img = await this.openImageExif(file);
-    this.originalImage = img;
+    this.originalImage = await this.openImageExif(file);
     this.drawOriginalImage();    
 
     console.group(`Predicting image: ${this.imageId}.`);
 
-    const inputTensor = this.convertImageToTensor(img);
+    const inputTensor = await this.convertImageToTensor(this.originalImage);
     console.log(`Input tensor shape: ${inputTensor.shape}`, 1);
 
     let message = '';

@@ -212,7 +212,7 @@ export class UserService {
         if ( status.connected ) {
             console.error('Error in refreshToken method, redirecting to login page:', error.message);
             // Optionally, you can redirect to login if token refresh fails due to authentication issues
-            this.router.navigate(['/']);
+            //this.router.navigate(['/']);
         }
         else {
           console.warn('Not connected to the Internet. Continuing offline.');
